@@ -1,0 +1,3 @@
+# Only the marketing site deploys. The extension is loaded into Chrome, not hosted.
+[build]
+  publish = "site"

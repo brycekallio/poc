@@ -1,0 +1,27 @@
+.poc-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2147483647;
+  width: 340px;
+  border: 1px solid #2a2f3a;
+  border-radius: 12px;
+  background: #11141b;
+  color: #e6e8ee;
+  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+}
+.poc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2a2f3a;
+}
+.poc-close {
+  border: 0; border-radius: 6px; cursor: pointer;
+  background: #1b1f29; color: #9aa3b2;
+  font: inherit; font-size: 11px; padding: 3px 7px;
+}
+.poc-body { padding: 14px; }
+.poc-muted { margin: 0; color: #9aa3b2; }
