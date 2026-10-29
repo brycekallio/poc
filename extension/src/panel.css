@@ -1,27 +1,523 @@
-.poc-panel {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 2147483647;
-  width: 340px;
-  border: 1px solid #2a2f3a;
-  border-radius: 12px;
-  background: #11141b;
-  color: #e6e8ee;
-  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+/* P.O.C: the caret dot and its popup. Loaded into a shadow root as text (see
+   build.mjs), so nothing here reaches the host page and the host's styles do
+   not reach in.
+
+   Style: achromatic ledger. Ink and greys; the one hue is the dot itself and
+   the bar beside your quoted words. The popup floats over the host page, so it
+   is the one surface allowed a shadow. */
+
+:host {
+  all: initial;
+
+  --surface: #ffffff;
+  --raised: #f2f2f2;
+  --rule: #efefef;
+  --control: #dedede;
+  --text: #0a0a0a;
+  --muted: #6b6b6b;
+  --primary: #141414;
+  --on-primary: #ffffff;
+  --hue: #1d5fbf;
+  --negative: #c4242a;
+  --skeleton: #f3f3f3;
+  --float: 0 10px 30px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.08);
+  --edge: transparent;
+  --glass: rgb(255 255 255 / 0.62);
+  --glass-edge: rgb(0 0 0 / 0.12);
+  --glass-shine: rgb(255 255 255 / 0.9);
+
+  --radius: 10px;
+  --radius-control: 7px;
+  --font: "POC Geist", "Geist", Inter, system-ui, -apple-system, sans-serif;
 }
-.poc-head {
+
+/* The theme follows the ground under the prompt box (content.js measures it),
+   not the OS setting: a dark OS can still show a light claude.ai. */
+:host([data-theme="dark"]) {
+    --surface: #171717;
+    --raised: #242424;
+    --rule: #242424;
+    --control: #383838;
+    --text: #fafafa;
+    --muted: #a8a8a8;
+    --primary: #fafafa;
+    --on-primary: #0a0a0a;
+    --hue: #6ea2f0;
+    --negative: #e5566f;
+    --skeleton: #222222;
+    /* A shadow cannot be seen on a dark page; the edge does the work instead. */
+    --float: 0 10px 30px rgb(0 0 0 / 0.5);
+    --edge: #2e2e2e;
+    --glass: rgb(40 40 40 / 0.55);
+    --glass-edge: rgb(255 255 255 / 0.16);
+    --glass-shine: rgb(255 255 255 / 0.12);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--hue);
+  outline-offset: 2px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The orb ─────────────────────────────────────────────────────────────
+   A small disc of frosted glass beside the caret, carrying the P.O.C mark.
+   It glides after the caret rather than jumping, and on hover widens into a
+   pill that names itself. Glass is a deliberate exception to the house style
+   (Bryce, 2026-10-28): it is the one floating object, and frosting lets the
+   text under it show through instead of being covered. */
+.dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483646;
+  display: block;
+  height: 22px;
+  margin: -11px 0 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.dot.still {
+  transition: none;
+}
+.dot[hidden] {
+  display: none;
+}
+.orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  color: var(--text);
+  /* taste-skill-ignore-start: the requested glass */
+  background: var(--glass);
+  backdrop-filter: blur(12px) saturate(1.8);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8);
+  box-shadow:
+    inset 0 0 0 0.5px var(--glass-edge),
+    inset 0 1px 0 var(--glass-shine),
+    0 4px 14px rgb(0 0 0 / 0.12),
+    0 1px 2px rgb(0 0 0 / 0.08);
+  /* taste-skill-ignore-end */
+  transition:
+    padding 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms;
+  animation: orb-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.orb .wm {
+  font-size: 11px;
+  transition: letter-spacing 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dot:hover .orb,
+.dot[aria-expanded="true"] .orb {
+  padding: 0 9px;
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 0.5px var(--glass-edge),
+    inset 0 1px 0 var(--glass-shine),
+    0 8px 22px rgb(0 0 0 / 0.16),
+    0 1px 2px rgb(0 0 0 / 0.08);
+}
+.dot:hover .wm,
+.dot[aria-expanded="true"] .wm {
+  letter-spacing: 0.06em;
+}
+.dot:active .orb {
+  transform: scale(0.96);
+}
+@keyframes orb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot,
+  .orb {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── The popup ─────────────────────────────────────────────────────────── */
+.popup {
+  position: fixed;
+  z-index: 2147483647;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  border-radius: var(--radius);
+  outline: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--float); /* taste-skill-ignore: the popup floats over the host page */
+  font: 400 13px / 18px var(--font);
+  -webkit-font-smoothing: antialiased;
+  animation: pop 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+.popup[hidden] {
+  display: none;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .popup {
+    animation-name: fade;
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 6px 0 14px;
+}
+.name {
+  display: flex;
+}
+.name .wm {
+  font-size: 15px;
+}
+.step {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  transition: background-color 120ms, color 120ms;
+}
+.step:empty + .icon {
+  margin-left: auto;
+}
+.icon svg {
+  width: 14px;
+  height: 14px;
+}
+.icon:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.body {
+  padding: 2px 14px 14px;
+}
+.note,
+.lead {
+  margin: 0;
+}
+.lead {
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+/* Idle: one line of what it does, one button. */
+.row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid #2a2f3a;
+  gap: 12px;
 }
-.poc-close {
-  border: 0; border-radius: 6px; cursor: pointer;
-  background: #1b1f29; color: #9aa3b2;
-  font: inherit; font-size: 11px; padding: 3px 7px;
+.meta {
+  color: var(--muted);
+  font-size: 12px;
 }
-.poc-body { padding: 14px; }
-.poc-muted { margin: 0; color: #9aa3b2; }
+
+/* One question. */
+.quote {
+  margin: 0 0 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--hue);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+.question {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.opts {
+  display: grid;
+  gap: 4px;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  text-align: left;
+  transition: background-color 120ms, color 120ms, transform 80ms;
+}
+.opt:hover {
+  background: var(--control);
+}
+.opt:active {
+  transform: scale(0.985);
+}
+.opt .check {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0;
+}
+.opt[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.opt[aria-pressed="true"] .check {
+  opacity: 1;
+}
+.own {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  margin-top: 4px;
+  padding: 0 10px;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.own::placeholder {
+  color: var(--muted);
+}
+.own[hidden] {
+  display: none;
+}
+
+.alt,
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+.foot {
+  justify-content: space-between;
+}
+.link {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  transition: color 120ms;
+}
+.link:hover {
+  color: var(--text);
+}
+.link.back {
+  margin-left: auto;
+}
+.link.strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: opacity 120ms, transform 80ms;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.btn.primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+/* Disabled stays legible; its title says why. */
+.btn:disabled {
+  background: var(--raised);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* Summary of the answers, before the rewrite. */
+.answers {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.answers li {
+  display: grid;
+  gap: 1px;
+}
+.sq {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.sa.skipped {
+  color: var(--muted);
+}
+
+/* Loading: the question's shape in flat bars. No shimmer. */
+.sk {
+  display: block;
+  border-radius: 4px;
+  background: var(--skeleton);
+}
+.sk-quote {
+  width: 44%;
+  height: 12px;
+  margin: 2px 0 10px;
+}
+.sk-question {
+  width: 90%;
+  height: 13px;
+  margin-bottom: 6px;
+}
+.sk-question.short {
+  width: 56%;
+  margin-bottom: 12px;
+}
+.sk-opt {
+  height: 32px;
+  border-radius: var(--radius-control);
+}
+.status {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.error {
+  display: flex;
+  gap: 8px;
+}
+.error p {
+  margin: 0 0 6px;
+}
+.error-glyph {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  flex: none;
+  color: var(--negative);
+}
+
+/* The rewrite: the prompt itself, readable and selectable, then the
+   techniques it applies as quiet tags. */
+.rewrite {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  line-height: 19px;
+}
+.rewrite:focus-visible {
+  outline: 2px solid var(--hue);
+}
+.techniques {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.techniques li {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn.ghost:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.sk-line {
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+/* The wordmark. The o is a disc in the hue, sized to the x-height and sat on
+   the baseline, so it reads as a letter and as the orb's dot at once. */
+.wm {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.wm-o {
+  display: inline-block;
+  width: 0.56em;
+  height: 0.56em;
+  margin: 0 0.06em;
+  border-radius: 50%;
+  background: var(--hue);
+}

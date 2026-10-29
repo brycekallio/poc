@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P.O.C — demo</title>
+    <style>
+      /* A stand-in for claude.ai's composer page. Not part of the extension. */
+      body { margin: 0; font: 16px/1.5 system-ui, sans-serif; }
+      #stage {
+        position: relative; height: 760px; overflow: hidden; border-radius: 12px;
+        background: #faf9f5; /* taste-skill-ignore: claude.ai's real ground */ color: #141413;
+      }
+      main { max-width: 620px; margin: 0 auto; padding: 300px 24px 0; }
+      h1 { margin: 0 0 20px; font: 400 30px/1.2 Georgia, serif; text-align: center; }
+      @media (prefers-color-scheme: dark) {
+        #stage { background: #262624; /* taste-skill-ignore: claude.ai dark ground */ color: #f5f4ef; }
+        #composer { background: #30302e !important; border-color: #3d3d3a !important; }
+      }
+      #composer { min-height: 88px; padding: 16px 18px; border-radius: 16px; background: #fff; border: 1px solid #e8e6dc; /* taste-skill-ignore */ }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <main>
+        <h1>Good afternoon</h1>
+        <div id="composer" contenteditable="true"></div>
+      </main>
+    </div>
+    <script>/*DEMO*/</script>
+  </body>
+</html>

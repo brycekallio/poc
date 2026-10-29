@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P.O.C — settings</title>
+    <style>
+      /* Style: achromatic ledger, the same tokens as the panel (src/panel.css).
+         No sidebar: one view, so the shell is a top bar over a centred column.
+         Grid: 920 column = 280 label + 40 gap + 600 panel. */
+      @font-face { font-family: "Geist"; src: url(fonts/Geist-Regular.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+      @font-face { font-family: "Geist"; src: url(fonts/Geist-Medium.woff2) format("woff2"); font-weight: 500; font-display: swap; }
+      @font-face { font-family: "Geist Mono"; src: url(fonts/GeistMono-Regular.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+
+      :root {
+        color-scheme: light dark;
+        --ground: #ffffff; --surface: #f8f8f8; --raised: #eeeeee;
+        --border: #e6e6e6; --rule: #f0f0f0; --control: #d4d4d4;
+        --text: #0a0a0a; --muted: #6b6b6b;
+        --primary: #141414; --on-primary: #ffffff; --secondary: #e5e5e5;
+        --hue: #1d5fbf; --positive: #2e7d32; --negative: #c4242a;
+        --radius-card: 8px; --radius-control: 6px; --control-height: 36px;
+        --font: "Geist", Inter, system-ui, -apple-system, sans-serif;
+        --mono: "Geist Mono", ui-monospace, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #000000; --surface: #111111; --raised: #222222;
+          --border: #2e2e2e; --rule: #1a1a1a; --control: #444444;
+          --text: #ffffff; --muted: #b4b4b4;
+          --primary: #ffffff; --on-primary: #0a0a0a; --secondary: #2a2a2a;
+          --hue: #6ea2f0; --positive: #3fc07a; --negative: #e5566f;
+        }
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--ground); color: var(--text);
+        font: 400 14px/20px var(--font); -webkit-font-smoothing: antialiased;
+      }
+      .num { font-variant-numeric: tabular-nums; }
+      button, input { font: inherit; color: inherit; }
+      button { cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--hue); outline-offset: 2px; }
+
+      .bar { height: 48px; border-bottom: 1px solid var(--rule); }
+      .bar-inner, main { width: min(920px, 100% - 48px); margin: 0 auto; }
+      .bar-inner { height: 100%; display: flex; align-items: center; gap: 8px; }
+      .bar .name { font-weight: 500; }
+      .bar .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+      .wm { display: inline-flex; align-items: baseline; font-weight: 600; font-size: 17px; line-height: 1; letter-spacing: .01em; }
+      .wm-o { display: inline-block; width: .56em; height: .56em; margin: 0 .06em; border-radius: 50%; background: var(--hue); }
+      .bar .name { color: var(--muted); font-weight: 400; }
+
+      main { padding: 36px 0 96px; }
+      h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; letter-spacing: -0.01em; }
+      .lede { margin: 4px 0 0; color: var(--muted); }
+      .lede.ok { color: var(--text); }
+
+      .section {
+        display: grid; grid-template-columns: 280px 1fr; gap: 40px; align-items: start;
+        padding: 32px 0; border-top: 1px solid var(--rule);
+      }
+      .section:first-of-type { margin-top: 32px; }
+      .section h2 { margin: 6px 0 4px; font-size: 16px; line-height: 24px; font-weight: 500; }
+      .section .desc { margin: 0; color: var(--muted); }
+      .section .desc a { color: var(--text); text-underline-offset: 2px; }
+      .well { padding: 16px; border-radius: var(--radius-card); background: var(--surface); }
+
+      label.field { display: block; margin-bottom: 8px; font-weight: 500; }
+      .joined { display: flex; }
+      .joined input {
+        flex: 1; min-width: 0; height: var(--control-height); padding: 0 12px;
+        border: 1px solid var(--control); border-right: 0;
+        border-radius: var(--radius-control) 0 0 var(--radius-control);
+        background: var(--ground); font-family: var(--mono); font-size: 13px; /* taste-skill-ignore: an API key, the case mono is for */
+      }
+      .joined input::placeholder { color: var(--muted); }
+      .joined button {
+        flex: none; width: 64px; height: var(--control-height); border: 1px solid var(--control);
+        border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--ground); color: var(--muted);
+      }
+      .joined button:hover { color: var(--text); }
+      .help { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 16px; }
+
+      .models { display: grid; gap: 6px; }
+      .model {
+        display: grid; grid-template-columns: 16px 1fr auto; gap: 12px; align-items: start;
+        padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-control);
+        background: var(--ground); cursor: pointer; transition: border-color 120ms;
+      }
+      .model:hover { border-color: var(--muted); }
+      .model:has(input:checked) { border-color: var(--primary); }
+      .model input { margin: 2px 0 0; accent-color: var(--primary); width: 16px; height: 16px; }
+      .model .mname { font-weight: 500; }
+      .model .mnote { display: block; color: var(--muted); }
+      .model .cost { text-align: right; white-space: nowrap; }
+      .model .cost small { display: block; color: var(--muted); font-size: 12px; line-height: 16px; }
+
+      .keys { display: flex; align-items: center; gap: 12px; }
+      kbd {
+        display: inline-block; min-width: 24px; padding: 2px 6px; border-radius: 4px;
+        background: var(--raised); font: inherit; text-align: center;
+      }
+      .link { padding: 0; border: 0; background: none; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+
+      .save { display: grid; grid-template-columns: 280px 1fr; gap: 40px; padding: 0 0 32px; margin-top: -12px; }
+      .save-row { display: flex; align-items: center; gap: 16px; }
+      .btn { height: 36px; padding: 0 16px; border: 0; border-radius: var(--radius-control); font-weight: 500; transition: transform 80ms, opacity 120ms; }
+      .btn:active:not(:disabled) { transform: scale(0.98); }
+      .btn.primary { background: var(--primary); color: var(--on-primary); }
+      .btn:disabled { background: var(--raised); color: var(--muted); cursor: progress; }
+      #status { margin: 0; color: var(--muted); }
+      #status.ok { color: var(--positive); }
+      #status.err { color: var(--negative); }
+
+      .danger {
+        height: 36px; padding: 0 14px; border: 1px solid var(--negative); border-radius: var(--radius-control);
+        background: transparent; color: var(--negative); font-weight: 500;
+      }
+      .danger:disabled { border-color: var(--control); color: var(--muted); cursor: not-allowed; }
+
+      @media (max-width: 720px) {
+        .bar-inner, main { width: calc(100% - 32px); }
+        .bar .hint { display: none; }
+        main { padding-top: 24px; }
+        .section { grid-template-columns: 1fr; gap: 12px; padding: 24px 0; }
+        .section h2 { margin-top: 0; }
+        .save { grid-template-columns: 1fr; gap: 0; margin-top: -8px; }
+        .save > span { display: none; }
+        .model { padding: 12px 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <div class="bar-inner">
+        <span class="wm" role="img" aria-label="P.O.C">p<span class="wm-o" aria-hidden="true"></span>c</span>
+        <span class="name">Prompt Optimization Coach</span>
+        <span class="hint">Works on Claude, ChatGPT and Gemini</span>
+      </div>
+    </header>
+
+    <main>
+      <h1>Settings</h1>
+      <p class="lede" id="lede">No key yet. The coach cannot run until you add one.</p>
+
+      <form id="form" novalidate>
+        <section class="section" aria-labelledby="key-h">
+          <div>
+            <h2 id="key-h">Anthropic API key</h2>
+            <p class="desc">Kept in this browser only, never synced. Sent to api.anthropic.com and nowhere else.
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Create a key</a></p>
+          </div>
+          <div class="well">
+            <label class="field" for="key">Key</label>
+            <div class="joined">
+              <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-api03-…" aria-describedby="key-help" />
+              <button type="button" id="reveal" aria-controls="key">Show</button>
+            </div>
+            <p class="help" id="key-help">Saving checks the key with one tiny request first.</p>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="model-h">
+          <div>
+            <h2 id="model-h">Model</h2>
+            <p class="desc">Runs every time you summon the coach. You pay for it on your own key.</p>
+          </div>
+          <div class="well">
+            <div class="models" id="models" role="radiogroup" aria-labelledby="model-h"></div>
+            <p class="help" id="estimate"></p>
+          </div>
+        </section>
+
+        <!-- One save for the form: it checks the key with the chosen model first. -->
+        <div class="save">
+          <span></span>
+          <div class="save-row">
+            <button class="btn primary" id="save" type="submit">Save</button>
+            <p id="status" role="status"></p>
+          </div>
+        </div>
+      </form>
+
+      <section class="section" aria-labelledby="keys-h">
+        <div>
+          <h2 id="keys-h">Shortcut</h2>
+          <p class="desc">Opens the coach on the prompt you are writing. Esc closes it.</p>
+        </div>
+        <div class="well keys">
+          <span id="shortcut" class="num">—</span>
+          <button class="link" type="button" id="shortcuts">Change in Chrome</button>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="remove-h">
+        <div>
+          <h2 id="remove-h">Remove key</h2>
+          <p class="desc">Deletes the key from this browser. The coach stops working until you add one again.</p>
+        </div>
+        <div class="well">
+          <button class="danger" type="button" id="remove">Remove key</button>
+        </div>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
