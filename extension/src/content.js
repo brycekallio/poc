@@ -16,12 +16,26 @@ import { writeBack } from "./writeback.js";
 // the worker, and tells panel.js what to show.
 
 const host = currentHost();
-if (host) start();
+// On a site you switched on, the worker may inject this script into a tab that
+// already has it (registered for the site, then injected into the open tab).
+if (!globalThis.__pocStarted) {
+  globalThis.__pocStarted = true;
+  start();
+}
 
 function start() {
   let box = null;
-  // The prompt box, found again whenever the host re-rendered it away.
-  const currentBox = () => (box?.isConnected ? box : (box = findPromptBox(host)));
+  // The prompt box, found again whenever the host re-rendered it away. On a
+  // site with no known selector it follows focus: the text box you are in, or
+  // the last one you were in.
+  const currentBox = () => {
+    if (host.generic) {
+      const focused = findPromptBox(host);
+      if (focused) box = focused;
+      return box?.isConnected ? box : null;
+    }
+    return box?.isConnected ? box : (box = findPromptBox(host));
+  };
   const currentDraft = () => (currentBox() ? readPrompt(box) : "");
 
   const session = createSession({

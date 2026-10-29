@@ -24,7 +24,7 @@ for (const f of ["geist-sans/Geist-Regular.woff2", "geist-sans/Geist-Medium.woff
 cpSync("node_modules/geist/LICENSE.txt", "dist/fonts/OFL.txt");
 
 const ctx = await esbuild.context({
-  entryPoints: { content: "src/content.js", worker: "src/worker.js", options: "src/options.js" },
+  entryPoints: { content: "src/content.js", worker: "src/worker.js", options: "src/options.js", popup: "src/popup.js" },
   outdir: "dist",
   bundle: true,
   format: "iife",

@@ -24,13 +24,35 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   }
 });
 
-chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
-
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  syncSites();
   if (reason !== "install") return;
   const { apiKey } = await settings();
   if (!apiKey) chrome.runtime.openOptionsPage();
 });
+
+// ── Sites you switched on ─────────────────────────────────────────────
+// Claude, ChatGPT and Gemini are in the manifest. Any other site is opt-in:
+// the toolbar popup asks Chrome for that one site's permission, and the grant
+// itself is the record. This keeps the content script registered for exactly
+// the granted sites, so the list cannot drift from what Chrome allows.
+const BUILT_IN = chrome.runtime.getManifest().host_permissions;
+const SITES_ID = "your-sites";
+
+async function syncSites() {
+  const { origins = [] } = await chrome.permissions.getAll();
+  const matches = origins.filter((o) => !BUILT_IN.includes(o));
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SITES_ID] });
+  if (!matches.length) {
+    if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [SITES_ID] });
+    return;
+  }
+  const script = { id: SITES_ID, matches, js: ["content.js"], runAt: "document_idle", persistAcrossSessions: true };
+  await (registered.length ? chrome.scripting.updateContentScripts([script]) : chrome.scripting.registerContentScripts([script]));
+}
+chrome.permissions.onAdded.addListener(syncSites);
+chrome.permissions.onRemoved.addListener(syncSites);
+chrome.runtime.onStartup.addListener(syncSites);
 
 const handlers = {
   async diagnose({ draft, host }) {
@@ -55,6 +77,14 @@ const handlers = {
     return { ok: true };
   },
 
+  // From the popup, after Chrome granted the site: start P.O.C in the open
+  // tab now, rather than on its next load.
+  async enableSite({ tabId }) {
+    await syncSites();
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    return { ok: true };
+  },
+
   async openOptions() {
     await chrome.runtime.openOptionsPage();
     return { ok: true };
@@ -66,7 +96,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!handler) return false;
   // checkKey carries a key, so only accept it from our own extension pages.
   // A content script's sender.url is the host page, not chrome-extension://.
-  if (msg.type === "checkKey" && !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
+  // enableSite injects scripts, so the same rule holds for it.
+  if ((msg.type === "checkKey" || msg.type === "enableSite") && !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
 
   handler(msg)
     .then((result) => sendResponse({ ok: true, ...result }))

@@ -4,7 +4,9 @@
   "version": "0.2.0",
   "description": "Improves the prompt you are writing, where you are writing it.",
   "permissions": [
-    "storage"
+    "storage",
+    "scripting",
+    "activeTab"
   ],
   "host_permissions": [
     "https://claude.ai/*",
@@ -16,11 +18,12 @@
     "service_worker": "worker.js"
   },
   "action": {
-    "default_title": "P.O.C settings",
+    "default_title": "P.O.C",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
-    }
+    },
+    "default_popup": "popup.html"
   },
   "options_ui": {
     "page": "options.html",
@@ -54,9 +57,7 @@
         "fonts/*"
       ],
       "matches": [
-        "https://claude.ai/*",
-        "https://chatgpt.com/*",
-        "https://gemini.google.com/*"
+        "<all_urls>"
       ]
     }
   ],
@@ -65,5 +66,9 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ]
 }
