@@ -4,12 +4,13 @@
 // are fixtures and the wait is faked.
 //
 //   npm run demo  →  open preview/demo.html          (type, hover the dot)
-//   preview/demo.html?state=idle|loading|question|summary|result|error|nothing  (pinned, for screenshots)
+//   preview/demo.html?state=idle|loading|question|summary|clear|result|unverified|error  (pinned, for screenshots)
 import regular from "../node_modules/geist/dist/fonts/geist-sans/Geist-Regular.woff2";
 import medium from "../node_modules/geist/dist/fonts/geist-sans/Geist-Medium.woff2";
 import { caretRect, groundOf } from "../src/caret.js";
 import { loadFonts } from "../src/fonts.js";
 import { createCoach } from "../src/panel.js";
+import { createSession } from "../src/session.js";
 import { writeBack } from "../src/writeback.js";
 
 // What call 2 returns for this draft, as fixed sample output.
@@ -35,21 +36,26 @@ const box = document.querySelector("#composer");
 box.textContent = draft;
 const fonts = { "fonts/Geist-Regular.woff2": regular, "fonts/Geist-Medium.woff2": medium };
 
-let session = null;
+// The real session module, with fixtures in place of the worker.
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const session = createSession({
+  diagnose: () => wait(1200).then(() => ({ questions })),
+  rewrite: () => wait(1100).then(() => rewritten),
+  onChange: () => coach.isOpen() && show(),
+});
+const then = (fn) => (...args) => (fn(...args), show());
 const coach = createCoach({
-  onHover: () => {
-    if (session) show();
-    else coach.idle({ words: draft.split(/\s+/).length });
-    coach.open();
-  },
-  onAsk: ask,
-  onRewrite: () => {
-    coach.rewriting();
-    setTimeout(() => (session.rewrite = rewritten, coach.isOpen() && showResult()), 1100);
-  },
+  onHover: () => (show(), coach.open()),
+  onAsk: then(() => (coach.pin(), session.ask(box.textContent))),
+  onChoose: then((a) => session.choose(a)),
+  onBack: then(() => session.back()),
+  onChangeAnswers: then(() => session.changeAnswers()),
+  onRewrite: then(() => (coach.pin(), session.rewrite())),
+  onRetry: then(() => (coach.pin(), session.retry())),
+  onLeaveResult: then(() => session.leaveResult()),
   onUse: (prompt) => {
     if (writeBack(box, prompt)) {
-      session = null;
+      session.used();
       coach.close();
     }
   },
@@ -58,24 +64,7 @@ const coach = createCoach({
   shadowMode: "open",
 });
 document.documentElement.append(coach.host);
-
-function ask() {
-  session = { status: "loading" };
-  coach.pin();
-  coach.loading();
-  setTimeout(() => {
-    session = { status: "done", state: { index: 0, answers: {} } };
-    if (coach.isOpen()) show();
-  }, 1200);
-}
-function showResult() {
-  coach.result(session.rewrite, { onBack: () => (session.rewrite = null, show()) });
-}
-function show() {
-  if (session.rewrite) return showResult();
-  if (session.status === "loading") coach.loading();
-  else coach.questions(questions, session.state);
-}
+const show = () => coach.render(session.view(box.textContent));
 
 function update() {
   coach.setTheme(groundOf(box));
@@ -99,16 +88,18 @@ update();
 
 // Fixed states for screenshots.
 const state = new URLSearchParams(location.search).get("state");
+const answers = { audience: questions[0].options[1], length: questions[1].options[2], numbers: null };
 const states = {
-  idle: () => coach.idle({ words: draft.split(/\s+/).length }),
-  loading: () => coach.loading(),
-  question: () => coach.questions(questions, { index: 1, answers: { audience: questions[0].options[1] } }),
-  summary: () => coach.questions(questions, { index: 3, answers: { audience: questions[0].options[1], length: questions[1].options[2], numbers: null } }),
-  error: () => coach.error({ code: "bad-key", message: "That API key was rejected." }),
-  nothing: () => coach.nothing(),
-  result: () => coach.result(rewritten, { onBack: () => {} }),
+  idle: { kind: "idle", words: draft.split(/\s+/).length },
+  loading: { kind: "loading" },
+  question: { kind: "question", question: questions[1], index: 1, total: questions.length, answer: undefined },
+  summary: { kind: "summary", questions, answers },
+  clear: { kind: "summary", questions: [], answers: {} },
+  error: { kind: "error", error: { code: "bad-key", message: "That API key was rejected." } },
+  result: { kind: "result", result: rewritten },
+  unverified: { kind: "result", result: { ...rewritten, unverified: ['The evidence for "success" ("lets them decide") is not in the prompt word for word.'] } },
 };
 if (states[state]) {
-  states[state]();
+  coach.render(states[state]);
   coach.open({ pin: true });
 }

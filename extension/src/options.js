@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL, MODELS, TOKENS_PER_SUMMON, costPer100 } from "./coach-models.js";
+import { DEFAULT_MODEL, MODELS, TOKENS_PER_USE, costPer100 } from "./coach-models.js";
 
 // One view, one save model: the Save button checks the key against the chosen
 // model through the worker, the same path the coach uses, and stores both only
@@ -33,13 +33,14 @@ for (const m of MODELS) {
 }
 const fmt = (n) => n.toLocaleString("en-US");
 $("estimate").textContent =
-  `Estimated at list prices for about ${fmt(TOKENS_PER_SUMMON.input)} tokens in and ${fmt(TOKENS_PER_SUMMON.output)} out per use. A long draft costs more.`;
+  `Estimated at list prices for about ${fmt(TOKENS_PER_USE.input)} tokens in and ${fmt(TOKENS_PER_USE.output)} out per use. A long draft costs more.`;
 
 const selectedModel = () => document.querySelector('input[name="model"]:checked')?.value ?? DEFAULT_MODEL;
 
 chrome.storage.local.get(["apiKey", "model"]).then(({ apiKey, model }) => {
   if (apiKey) $("key").value = apiKey;
-  const m = model || DEFAULT_MODEL;
+  // A saved model that has since left the list falls back to the default.
+  const m = MODELS.some((x) => x.id === model) ? model : DEFAULT_MODEL;
   document.querySelector(`input[name="model"][value="${m}"]`).checked = true;
   lede(apiKey, m);
 });

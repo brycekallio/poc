@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { DEFAULT_MODEL } from "./coach-models.js";
+import { DEFAULT_MODEL, MODELS } from "./coach-models.js";
 
 // The model calls. Imported by the service worker and by scripts/try-diagnose.mjs,
 // so the system prompt can be tuned from a terminal without reloading Chrome.
@@ -54,18 +54,9 @@ Write the questions in the same language as the draft.`;
  * @returns {Promise<{ questions: Array<{id: string, quote: string, question: string, options: string[]}>, diagnosis: string[] }>}
  */
 export async function diagnose({ apiKey, model = DEFAULT_MODEL, draft, host }) {
-  const client = new Anthropic({
-    apiKey,
-    // Required in an extension. The flag exists to stop a developer shipping
-    // their own key in a web page; this is the user's key in the user's browser.
-    dangerouslyAllowBrowser: true,
-    maxRetries: 1,
-  });
-
   const where = host ? ` They are writing it in ${host}.` : "";
-  const res = await client.beta.messages.parse({
+  const out = await request(clientFor(apiKey), {
     model,
-    max_tokens: 16000,
     system: DIAGNOSE_SYSTEM,
     messages: [
       {
@@ -73,21 +64,8 @@ export async function diagnose({ apiKey, model = DEFAULT_MODEL, draft, host }) {
         content: `Here is the user's draft prompt.${where}\n\n<draft>\n${draft}\n</draft>`,
       },
     ],
-    // Medium effort: the panel is open in the middle of someone's typing, and
-    // waiting is part of the experience.
-    output_config: { effort: "medium", format: betaZodOutputFormat(Diagnosis) },
-    // If the safety classifier declines, retry on Anthropic's recommended
-    // fallback model. A prompt coach sees whatever topic the user is working on.
-    // Haiku 5.5 has no server-side fallback.
-    ...(model.startsWith("claude-haiku")
-      ? {}
-      : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }),
+    schema: Diagnosis,
   });
-
-  if (res.stop_reason === "refusal") throw new CoachError("refused");
-  if (res.stop_reason === "max_tokens") throw new CoachError("truncated");
-  const out = res.parsed_output;
-  if (!out) throw new CoachError("unparseable");
 
   return {
     diagnosis: out.diagnosis,
@@ -157,7 +135,7 @@ Return the rewritten prompt, and for every technique an entry: applied true with
 /**
  * Call 2: rewrite the draft with the user's answers.
  * @param {{ apiKey: string, model?: string, draft: string, answers: Array<{question: string, answer: string|null}>, host?: string }} p
- * @returns {Promise<{ prompt: string, techniques: string[], applied: Array<{id: string, evidence: string}> }>}
+ * @returns {Promise<{ prompt: string, techniques: string[], applied: Array<{id: string, evidence: string}>, unverified: string[] }>}
  */
 export async function rewrite({ apiKey, model = DEFAULT_MODEL, draft, answers, host }) {
   const client = clientFor(apiKey);
@@ -182,7 +160,6 @@ export async function rewrite({ apiKey, model = DEFAULT_MODEL, draft, answers, h
     );
     out = await requestRewrite(client, model, messages);
     problems = checkRewrite(out, draft);
-    if (problems.length) console.debug("[POC] rewrite still failing checks", problems);
   }
 
   const applied = out.techniques.filter((t) => t.applied && evidenceIn(t.evidence, out.prompt));
@@ -192,21 +169,38 @@ export async function rewrite({ apiKey, model = DEFAULT_MODEL, draft, answers, h
     // Only techniques whose evidence is really in the prompt are shown as applied.
     techniques: applied.sort((a, b) => order(a.id) - order(b.id)).map((t) => TECHNIQUES[order(t.id)].label),
     applied: applied.map(({ id, evidence }) => ({ id, evidence })),
+    // Still failing after the retry: returned, but named, so the popup says so.
+    unverified: problems,
   };
 }
 
 async function requestRewrite(client, model, messages) {
+  const out = await request(client, { model, system: REWRITE_SYSTEM, messages, schema: Rewrite });
+  if (!out.prompt?.trim()) throw new CoachError("unparseable");
+  return out;
+}
+
+/**
+ * The one way both calls reach the model: structured output, medium effort,
+ * the safety fallback where the model has one, and a stop reason turned into
+ * a CoachError.
+ */
+async function request(client, { model, system, messages, schema }) {
   const res = await client.beta.messages.parse({
     model,
     max_tokens: 16000,
-    system: REWRITE_SYSTEM,
+    system,
     messages,
-    output_config: { effort: "medium", format: betaZodOutputFormat(Rewrite) },
-    ...fallbackFor(model),
+    // Medium effort: the popup is open in the middle of someone's typing, and
+    // waiting is part of the experience.
+    output_config: { effort: "medium", format: betaZodOutputFormat(schema) },
+    // If the safety classifier declines, retry on Anthropic's recommended
+    // fallback model. A prompt coach sees whatever topic the user is working on.
+    ...(hasFallback(model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
   });
   if (res.stop_reason === "refusal") throw new CoachError("refused");
   if (res.stop_reason === "max_tokens") throw new CoachError("truncated");
-  if (!res.parsed_output?.prompt?.trim()) throw new CoachError("unparseable");
+  if (!res.parsed_output) throw new CoachError("unparseable");
   return res.parsed_output;
 }
 
@@ -251,21 +245,18 @@ function evidenceIn(evidence, prompt) {
 
 const wordCount = (t) => t.split(/\s+/).filter(Boolean).length;
 
-function clientFor(apiKey) {
+function clientFor(apiKey, { maxRetries = 1 } = {}) {
   return new Anthropic({
     apiKey,
     // Required in an extension. The flag exists to stop a developer shipping
     // their own key in a web page; this is the user's key in the user's browser.
     dangerouslyAllowBrowser: true,
-    maxRetries: 1,
+    maxRetries,
   });
 }
 
-// If the safety classifier declines, retry on Anthropic's recommended fallback
-// model. Haiku 5.5 has no server-side fallback.
-function fallbackFor(model) {
-  return model.startsWith("claude-haiku") ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" };
-}
+// Unknown ids (a model typed in by hand, say) get the fallback; the API is the judge.
+const hasFallback = (model) => MODELS.find((m) => m.id === model)?.fallback !== false;
 
 // A quote is shown as the user's own words, so it must be. Keep it only if it
 // appears in the draft (ignoring case and runs of whitespace); otherwise "".
@@ -312,8 +303,7 @@ export function describeError(err) {
 
 /** The cheapest call that proves a key and model work. Used by the options page. */
 export async function checkKey({ apiKey, model = DEFAULT_MODEL }) {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0 });
-  await client.messages.create({
+  await clientFor(apiKey, { maxRetries: 0 }).messages.create({
     model,
     max_tokens: 16,
     messages: [{ role: "user", content: "Reply with OK." }],

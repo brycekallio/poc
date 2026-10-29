@@ -157,6 +157,8 @@ input:focus-visible {
 /* ── The popup ─────────────────────────────────────────────────────────── */
 .popup {
   position: fixed;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: 2147483647;
   width: 320px;
   max-width: calc(100vw - 24px);
@@ -484,6 +486,24 @@ input:focus-visible {
   font-size: 11px;
   line-height: 16px;
   white-space: nowrap;
+}
+/* A rewrite that failed the checks twice: shown, but never passed off as clean. */
+.caution {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--negative);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  background: var(--raised);
+  font-size: 12px;
+  line-height: 17px;
+}
+.caution p {
+  margin: 0 0 2px;
+}
+.caution ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
 }
 .actions {
   display: flex;

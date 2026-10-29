@@ -2,6 +2,7 @@ import { caretRect, groundOf } from "./caret.js";
 import { loadFonts } from "./fonts.js";
 import { currentHost, findPromptBox, readPrompt } from "./hosts.js";
 import { createCoach } from "./panel.js";
+import { createSession } from "./session.js";
 import { writeBack } from "./writeback.js";
 
 // P.O.C sits beside your caret as a small dot while you write a prompt, and
@@ -19,22 +20,45 @@ if (host) start();
 
 function start() {
   let box = null;
-  // One coaching session per draft. Re-hovering an unchanged draft resumes it
-  // instead of paying for the same questions twice.
-  let session = null; // { draft, status, questions?, state?, error? }
-  let run = 0; // bumps when a newer request supersedes an older one
+  // The prompt box, found again whenever the host re-rendered it away.
+  const currentBox = () => (box?.isConnected ? box : (box = findPromptBox(host)));
+  const currentDraft = () => (currentBox() ? readPrompt(box) : "");
+
+  const session = createSession({
+    diagnose: (draft) => send({ type: "diagnose", draft, host: host.label }),
+    rewrite: (draft, answers) => send({ type: "rewrite", draft, answers, host: host.label }),
+    onChange: () => coach.isOpen() && show(),
+  });
+  // Every intent updates the session, then redraws from it.
+  const then = (fn) => (...args) => {
+    fn(...args);
+    show();
+  };
 
   loadFonts((path) => chrome.runtime.getURL(path));
   const coach = createCoach({
     onHover: () => openCoach({ pin: false }),
     onAsk: () => ask(),
-    onRewrite: () => rewrite(),
+    onChoose: then((answer) => session.choose(answer)),
+    onBack: then(() => session.back()),
+    onChangeAnswers: then(() => session.changeAnswers()),
+    onRewrite: then(() => {
+      coach.pin();
+      session.rewrite();
+    }),
+    onRetry: then(() => {
+      coach.pin();
+      session.retry();
+    }),
+    onLeaveResult: then(() => session.leaveResult()),
     onUse: (prompt) => use(prompt),
     onClose: () => schedule(),
     onOpenOptions: () => chrome.runtime.sendMessage({ type: "openOptions" }),
   });
   // On <html>, not <body>, so a framework re-rendering body does not remove it.
   document.documentElement.appendChild(coach.host);
+
+  const show = () => coach.render(session.view(currentDraft()));
 
   // ── Following the caret ───────────────────────────────────────────────
   let frame = 0;
@@ -43,7 +67,7 @@ function start() {
   }
   function update() {
     frame = 0;
-    if (!box?.isConnected) box = findPromptBox(host);
+    const box = currentBox();
     const active = box && (box === document.activeElement || box.contains(document.activeElement));
     if (!active || !readPrompt(box).trim()) return coach.setCaret(null);
     coach.setTheme(groundOf(box));
@@ -70,117 +94,60 @@ function start() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type !== "toggle") return;
     if (coach.isOpen()) return coach.close();
-    if (!box?.isConnected) box = findPromptBox(host);
+    const box = currentBox();
     if (!box) return;
     coach.setCaret(caretRect(box, coach.layer) ?? fallbackRect(box), box.getBoundingClientRect());
     openCoach({ pin: true, askNow: true });
   });
 
-  // ── The popup's states ────────────────────────────────────────────────
   function openCoach({ pin, askNow = false }) {
-    if (!box?.isConnected) box = findPromptBox(host);
-    if (!box) return; // Selector drifted. Stay silent rather than break the page.
-    const draft = readPrompt(box).trim();
-    if (!draft) {
-      coach.empty();
-    } else if (session?.draft === draft) {
-      render();
-    } else if (askNow) {
-      coach.open({ pin: true });
-      return ask();
-    } else {
-      coach.idle({ words: countWords(draft) });
-    }
+    if (!currentBox()) return; // Selector drifted. Stay silent rather than break the page.
+    // The shortcut asks right away, unless this draft is already being coached.
+    if (askNow && session.view(currentDraft()).kind === "idle") return ask();
+    show();
     coach.open({ pin });
   }
 
-  function render() {
-    if (session.rewrite) return showResult();
-    if (session.status === "loading") coach.loading();
-    else if (session.status === "error") coach.error(session.error);
-    else if (!session.questions.length) coach.nothing();
-    else coach.questions(session.questions, session.state);
-  }
-
-  async function ask() {
-    if (!box?.isConnected) box = findPromptBox(host);
-    const draft = box ? readPrompt(box).trim() : "";
-    if (!draft) return coach.empty();
-    const thisRun = ++run;
-    session = { draft, status: "loading" };
+  function ask() {
+    const draft = currentDraft();
     coach.pin();
-    coach.loading();
-
-    let res;
-    try {
-      res = await chrome.runtime.sendMessage({ type: "diagnose", draft, host: host.label });
-    } catch {
-      // The extension was reloaded under this tab; this content script is orphaned.
-      res = { ok: false, error: { code: "orphaned", message: "P.O.C was updated. Reload this page to use it." } };
-    }
-    if (run !== thisRun) return;
-    if (!res?.ok) {
-      session = { draft, status: "error", error: res?.error ?? { code: "unknown", message: "Something went wrong." } };
-    } else {
-      // The answers are what call 2 (the rewrite) will take. Not built yet.
-      session = { draft, status: "done", questions: res.questions, state: { index: 0, answers: {} } };
-    }
-    if (coach.isOpen()) render();
-  }
-
-  // ── Call 2: the rewrite ──────────────────────────────────────────────
-  async function rewrite() {
-    if (!session?.questions) return;
-    const thisRun = ++run;
-    const { draft, questions, state } = session;
-    coach.pin();
-    coach.rewriting();
-    const answers = questions.map((q) => ({ question: q.question, answer: state.answers[q.id] ?? null }));
-    let res;
-    try {
-      res = await chrome.runtime.sendMessage({ type: "rewrite", draft, answers, host: host.label });
-    } catch {
-      res = { ok: false, error: { code: "orphaned", message: "P.O.C was updated. Reload this page to use it." } };
-    }
-    if (run !== thisRun) return;
-    if (!res?.ok) return coach.error(res?.error ?? { code: "unknown", message: "Something went wrong." });
-    session.rewrite = { prompt: res.prompt, techniques: res.techniques };
-    if (coach.isOpen()) showResult();
-  }
-
-  let result = null;
-  function showResult() {
-    result = coach.result(session.rewrite, {
-      onBack: () => {
-        session.rewrite = null;
-        render();
-      },
-    });
+    coach.open({ pin: true });
+    if (draft.trim()) session.ask(draft);
+    show();
   }
 
   async function use(prompt) {
-    if (!box?.isConnected) box = findPromptBox(host);
+    const box = currentBox();
     if (box && writeBack(box, prompt)) {
-      // The draft changed, so this session is spent; the next hover starts fresh.
-      session = null;
+      session.used();
       coach.close();
       return;
     }
     try {
       await navigator.clipboard.writeText(prompt);
-      result?.report("Couldn't write into the box here, so it's on your clipboard. Paste with ⌘V.");
+      coach.report("Couldn't write into the box here, so it's on your clipboard. Paste with ⌘V.");
     } catch {
-      result?.report("Couldn't write into the box or copy. Select the text above and copy it.");
+      coach.report("Couldn't write into the box or copy. Select the text above and copy it.");
     }
   }
+}
+
+// The worker answers { ok, ...result } or { ok: false, error }. Failures are
+// thrown as { code, message } for the session to show.
+async function send(msg) {
+  let res;
+  try {
+    res = await chrome.runtime.sendMessage(msg);
+  } catch {
+    // The extension was reloaded under this tab; this content script is orphaned.
+    throw { code: "orphaned", message: "P.O.C was updated. Reload this page to use it." };
+  }
+  if (!res?.ok) throw res?.error ?? { code: "unknown", message: "Something went wrong." };
+  return res;
 }
 
 // When the caret cannot be measured, sit at the box's right edge, top line.
 function fallbackRect(box) {
   const r = box.getBoundingClientRect();
   return new DOMRect(r.right - 16, r.top + 8, 0, 20);
-}
-
-function countWords(text) {
-  return text ? text.split(/\s+/).filter(Boolean).length : 0;
 }

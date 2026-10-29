@@ -46,8 +46,8 @@ const handlers = {
   async rewrite({ draft, answers, host }) {
     const { apiKey, model } = await settings();
     if (!apiKey) throw new CoachError("no-key");
-    const { prompt, techniques } = await rewrite({ apiKey, model, draft, answers, host });
-    return { prompt, techniques };
+    const { prompt, techniques, unverified } = await rewrite({ apiKey, model, draft, answers, host });
+    return { prompt, techniques, unverified };
   },
 
   async checkKey({ apiKey, model }) {

@@ -2,27 +2,39 @@ import panelCss from "./panel.css";
 
 // P.O.C's interface: a small dot that sits beside the text caret, and a popup
 // that opens when you hover it. Knows nothing about Chrome, the host page or the
-// API: content.js decides what to show, and dev/ renders it from fixtures.
+// API: session.js decides what to show, and this draws it.
 //
 // Hovering only opens the popup. Nothing is sent to the model until you click
 // "Coach this draft" (or press the shortcut), so brushing past the dot is free.
 
 const POPUP_WIDTH = 320;
+// Errors the settings page can fix; the rest get "Try again". Codes from coach.js describeError().
+const FIXABLE = ["no-key", "bad-key", "bad-model", "forbidden"];
 const OPEN_DELAY = 140; // ms of hover before opening, so passing over the dot does nothing
 const CLOSE_DELAY = 260; // ms of grace after the pointer leaves, so moving to the popup does not close it
 
 /**
+ * Each action is a user intent; the caller updates the session and calls
+ * render(session.view(draft)) again.
  * @param {{
- *   onHover: () => void,        // the dot was hovered: render a state, then call open()
- *   onAsk: () => void,          // "Coach this draft" or "Ask again"
- *   onRewrite: () => void,      // "Rewrite", once the questions are answered
- *   onUse: (prompt: string) => void,   // put the rewrite into the prompt box
+ *   onHover: () => void,          // the dot was hovered: render, then call open()
+ *   onAsk: () => void,            // "Coach this draft"
+ *   onChoose: (answer: string|null) => void,  // an option, your own answer, or Skip (null)
+ *   onBack: () => void,           // the previous question
+ *   onChangeAnswers: () => void,  // from the summary back to question 1
+ *   onRewrite: () => void,
+ *   onRetry: () => void,          // "Try again" after an error
+ *   onLeaveResult: () => void,    // from the rewrite back to the summary
+ *   onUse: (prompt: string) => void,  // put the rewrite into the prompt box
  *   onClose?: () => void,
  *   onOpenOptions: () => void,
  *   shadowMode?: "open"|"closed",
  * }} actions
  */
-export function createCoach({ onHover, onAsk, onRewrite, onUse, onClose, onOpenOptions, shadowMode = "closed" }) {
+export function createCoach({
+  onHover, onAsk, onChoose, onBack, onChangeAnswers, onRewrite, onRetry, onLeaveResult, onUse, onClose, onOpenOptions,
+  shadowMode = "closed",
+}) {
   // A closed shadow root keeps the host page's CSS out and ours in. Only the
   // dev previews open it, so they can drive the popup.
   const host = document.createElement("poc-coach");
@@ -102,6 +114,8 @@ export function createCoach({ onHover, onAsk, onRewrite, onUse, onClose, onOpenO
     popup.style.top = above ? "" : `${span.bottom + 10}px`;
     popup.style.bottom = above ? `${innerHeight - span.top + 10}px` : "";
     popup.dataset.side = above ? "above" : "below";
+    // Never taller than the room on its side; the body scrolls instead.
+    popup.style.maxHeight = `${(above ? span.top : innerHeight - span.bottom) - 10 - margin}px`;
     popup.style.transformOrigin = `${anchor.x - left}px ${above ? "100%" : "0"}`;
   }
 
@@ -115,8 +129,146 @@ export function createCoach({ onHover, onAsk, onRewrite, onUse, onClose, onOpenO
   }
 
   const show = (...children) => {
-    body.replaceChildren(...children);
+    body.replaceChildren(...children.filter((c) => c != null));
     if (open) place();
+  };
+
+  // ── Views, one per session.view() kind ─────────────────────────────────
+  let report = null; // writes under the result; set only while it is showing
+
+  const views = {
+    empty() {
+      show(h("p", { class: "note" }, "Write a first pass, then hover the dot again."));
+    },
+
+    /** Before anything is sent: what will be coached, and the one button that sends it. */
+    idle({ words }) {
+      show(
+        h(
+          "div",
+          { class: "idle" },
+          h("p", { class: "lead" }, "Sharpen this prompt with a few quick questions."),
+          h(
+            "div",
+            { class: "row" },
+            h("span", { class: "meta num" }, `${words} ${words === 1 ? "word" : "words"}`),
+            h("button", { class: "btn primary", type: "button", onclick: onAsk, ...keepFocus }, "Coach this draft"),
+          ),
+        ),
+      );
+    },
+
+    // The question's final shape in flat bars, so nothing jumps when it lands.
+    loading() {
+      show(
+        h(
+          "div",
+          { class: "q", "aria-hidden": "true" },
+          h("span", { class: "sk sk-quote" }),
+          h("span", { class: "sk sk-question" }),
+          h("span", { class: "sk sk-question short" }),
+          h("div", { class: "opts" }, ...[0, 1, 2].map(() => h("span", { class: "sk sk-opt" }))),
+        ),
+        h("p", { class: "status", role: "status" }, "Reading your draft…"),
+      );
+    },
+
+    rewriting() {
+      show(
+        h("div", { class: "q", "aria-hidden": "true" }, ...[92, 100, 84, 96, 60].map((w) => h("span", { class: "sk sk-line", style: `width:${w}%` }))),
+        h("p", { class: "status", role: "status" }, "Rewriting with your answers…"),
+      );
+    },
+
+    /** One question at a time. Choosing moves on after a beat, so the choice is seen to land. */
+    question({ question: q, index, total, answer }) {
+      step.textContent = total > 1 ? `${index + 1} of ${total}` : "";
+      show(questionView(q, answer, {
+        choose: (value) => setTimeout(() => onChoose(value), 220),
+        back: index > 0 ? onBack : null,
+      }));
+    },
+
+    /** The answers, and the Rewrite button. With no questions, the draft was already clear. */
+    summary({ questions, answers }) {
+      const rows = questions.map((q) =>
+        h(
+          "li",
+          {},
+          h("span", { class: "sq" }, q.question),
+          answers[q.id] == null
+            ? h("span", { class: "sa skipped" }, "Skipped")
+            : h("span", { class: "sa" }, answers[q.id]),
+        ),
+      );
+      show(
+        questions.length
+          ? h("p", { class: "lead" }, "Got it. Here is what the rewrite will use.")
+          : h("p", { class: "lead" }, "Nothing to ask. This draft already says what it needs to, so the rewrite only tightens it."),
+        questions.length ? h("ul", { class: "answers" }, ...rows) : null,
+        h(
+          "div",
+          { class: "foot" },
+          questions.length
+            ? h("button", { class: "link", type: "button", onclick: onChangeAnswers, ...keepFocus }, "Change answers")
+            : h("span"),
+          h("button", { class: "btn primary", type: "button", onclick: onRewrite, ...keepFocus }, "Rewrite"),
+        ),
+      );
+    },
+
+    /** The rewritten prompt, the techniques it applies, and the way to use it. */
+    result({ result: { prompt, techniques, unverified = [] } }) {
+      const note = h("p", { class: "status", role: "status" });
+      report = (text) => (note.textContent = text);
+      const copy = async () => {
+        try {
+          await navigator.clipboard.writeText(prompt);
+          note.textContent = "Copied. Paste it with ⌘V.";
+        } catch {
+          note.textContent = "Could not copy. Select the text above and copy it.";
+        }
+      };
+      show(
+        h("div", { class: "rewrite", tabindex: "0", "aria-label": "Rewritten prompt" }, prompt),
+        techniques.length ? h("ul", { class: "techniques", "aria-label": "Techniques applied" }, ...techniques.map((t) => h("li", {}, t))) : null,
+        // The checks failed twice. Say so rather than pass it off as clean.
+        unverified.length
+          ? h("div", { class: "caution", role: "note" }, h("p", {}, "Read this one before using it. It still misses:"), h("ul", {}, ...unverified.map((u) => h("li", {}, u))))
+          : null,
+        h(
+          "div",
+          { class: "foot" },
+          h("button", { class: "link", type: "button", onclick: onLeaveResult, ...keepFocus }, "Back"),
+          h(
+            "div",
+            { class: "actions" },
+            h("button", { class: "btn ghost", type: "button", onclick: copy, ...keepFocus }, "Copy"),
+            h("button", { class: "btn primary", type: "button", onclick: () => onUse(prompt), ...keepFocus }, "Use this"),
+          ),
+        ),
+        note,
+      );
+    },
+
+    error({ error: { code, message } }) {
+      const fixable = FIXABLE.includes(code);
+      show(
+        h(
+          "div",
+          { class: "error", role: "alert" },
+          errorGlyph(),
+          h(
+            "div",
+            {},
+            h("p", {}, message),
+            fixable
+              ? h("button", { class: "link strong", type: "button", onclick: onOpenOptions }, "Open settings")
+              : h("button", { class: "link strong", type: "button", onclick: onRetry, ...keepFocus }, "Try again"),
+          ),
+        ),
+      );
+    },
   };
 
   return {
@@ -176,178 +328,17 @@ export function createCoach({ onHover, onAsk, onRewrite, onUse, onClose, onOpenO
     },
     close,
 
-    // ── States ────────────────────────────────────────────────────────────
-
-    empty() {
+    /** Draw what the session says to show. `view` comes from session.view(draft). */
+    render(view) {
       step.textContent = "";
-      show(h("p", { class: "note" }, "Write a first pass, then hover the dot again."));
+      report = null;
+      const draw = views[view.kind];
+      if (!draw) throw new Error(`Unknown view: ${view.kind}`);
+      draw(view);
     },
-
-    /** Before anything is sent: what will be coached, and the one button that sends it. */
-    idle({ words }) {
-      step.textContent = "";
-      show(
-        h(
-          "div",
-          { class: "idle" },
-          h("p", { class: "lead" }, "Sharpen this prompt with a few quick questions."),
-          h(
-            "div",
-            { class: "row" },
-            h("span", { class: "meta num" }, `${words} ${words === 1 ? "word" : "words"}`),
-            h("button", { class: "btn primary", type: "button", onclick: onAsk, ...keepFocus }, "Coach this draft"),
-          ),
-        ),
-      );
-    },
-
-    // The question's final shape in flat bars, so nothing jumps when it lands.
-    loading() {
-      step.textContent = "";
-      show(
-        h(
-          "div",
-          { class: "q", "aria-hidden": "true" },
-          h("span", { class: "sk sk-quote" }),
-          h("span", { class: "sk sk-question" }),
-          h("span", { class: "sk sk-question short" }),
-          h("div", { class: "opts" }, ...[0, 1, 2].map(() => h("span", { class: "sk sk-opt" }))),
-        ),
-        h("p", { class: "status", role: "status" }, "Reading your draft…"),
-      );
-    },
-
-    rewriting() {
-      step.textContent = "";
-      show(
-        h("div", { class: "q", "aria-hidden": "true" }, ...[92, 100, 84, 96, 60].map((w) => h("span", { class: "sk sk-line", style: `width:${w}%` }))),
-        h("p", { class: "status", role: "status" }, "Rewriting with your answers…"),
-      );
-    },
-
-    /**
-     * The rewritten prompt, the techniques it applies, and the way to use it.
-     * @param {{ prompt: string, techniques: string[] }} result
-     * @param {{ onBack: () => void }} nav
-     */
-    result({ prompt, techniques }, { onBack }) {
-      step.textContent = "";
-      const note = h("p", { class: "status", role: "status" });
-      const copy = async () => {
-        try {
-          await navigator.clipboard.writeText(prompt);
-          note.textContent = "Copied. Paste it with ⌘V.";
-        } catch {
-          note.textContent = "Could not copy. Select the text above and copy it.";
-        }
-      };
-      show(
-        h("div", { class: "rewrite", tabindex: "0", "aria-label": "Rewritten prompt" }, prompt),
-        techniques.length ? h("ul", { class: "techniques", "aria-label": "Techniques applied" }, ...techniques.map((t) => h("li", {}, t))) : null,
-        h(
-          "div",
-          { class: "foot" },
-          h("button", { class: "link", type: "button", onclick: onBack, ...keepFocus }, "Back"),
-          h(
-            "div",
-            { class: "actions" },
-            h("button", { class: "btn ghost", type: "button", onclick: copy, ...keepFocus }, "Copy"),
-            h("button", { class: "btn primary", type: "button", onclick: () => onUse(prompt), ...keepFocus }, "Use this"),
-          ),
-        ),
-        note,
-      );
-      return {
-        /** Called after write-back: say what happened. */
-        report(text) {
-          note.textContent = text;
-        },
-      };
-    },
-
-    nothing() {
-      step.textContent = "";
-      show(
-        h("p", { class: "note" }, "Nothing to ask. This draft already says what it needs to."),
-        h("div", { class: "foot" }, h("button", { class: "link", type: "button", onclick: onAsk, ...keepFocus }, "Ask again")),
-      );
-    },
-
-    error({ code, message }) {
-      step.textContent = "";
-      const fixable = ["no-key", "bad-key", "bad-model", "forbidden"].includes(code);
-      show(
-        h(
-          "div",
-          { class: "error", role: "alert" },
-          errorGlyph(),
-          h(
-            "div",
-            {},
-            h("p", {}, message),
-            fixable
-              ? h("button", { class: "link strong", type: "button", onclick: onOpenOptions }, "Open settings")
-              : h("button", { class: "link strong", type: "button", onclick: onAsk, ...keepFocus }, "Try again"),
-          ),
-        ),
-      );
-    },
-
-    /**
-     * One question at a time. `state` is owned by the caller and mutated here,
-     * so closing and re-hovering on the same draft resumes where you were.
-     * @param {Array<{id: string, quote: string, question: string, options: string[]}>} questions
-     * @param {{ index: number, answers: Record<string, string|null> }} state
-     */
-    questions(questions, state) {
-      const render = () => {
-        if (state.index >= questions.length) return summary();
-        const q = questions[state.index];
-        step.textContent = questions.length > 1 ? `${state.index + 1} of ${questions.length}` : "";
-        show(questionView(q, state.answers[q.id], {
-          choose(value) {
-            state.answers[q.id] = value;
-            // A beat to see the choice land, then the next question.
-            setTimeout(() => {
-              state.index++;
-              render();
-            }, 220);
-          },
-          back: state.index > 0 ? () => {
-            state.index--;
-            render();
-          } : null,
-        }));
-      };
-
-      const summary = () => {
-        step.textContent = "";
-        const rows = questions.map((q) =>
-          h(
-            "li",
-            {},
-            h("span", { class: "sq" }, q.question),
-            state.answers[q.id] == null
-              ? h("span", { class: "sa skipped" }, "Skipped")
-              : h("span", { class: "sa" }, state.answers[q.id]),
-          ),
-        );
-        show(
-          h("p", { class: "lead" }, "Got it. Here is what the rewrite will use."),
-          h("ul", { class: "answers" }, ...rows),
-          h(
-            "div",
-            { class: "foot" },
-            h("button", { class: "link", type: "button", ...keepFocus, onclick: () => {
-              state.index = 0;
-              render();
-            } }, "Change answers"),
-            h("button", { class: "btn primary", type: "button", onclick: onRewrite, ...keepFocus }, "Rewrite"),
-          ),
-        );
-      };
-
-      render();
+    /** After "Use this": say what happened, under the result. */
+    report(text) {
+      report?.(text);
     },
   };
 }
