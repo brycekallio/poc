@@ -12,12 +12,25 @@ const status = (text, kind = "") => {
   $("status").textContent = text;
   $("status").className = kind;
 };
+// The title line and the ledger beside the preview: whether P.O.C is on, on
+// which model, and what that costs. The key part follows what is saved; the
+// model part follows the radio, so a choice shows its cost before Save.
 const lede = (apiKey, model) => {
   $("lede").textContent = apiKey
-    ? `Key saved. The coach runs on ${nameOf(model)}.`
-    : "No key yet. The coach cannot run until you add one.";
-  $("lede").className = apiKey ? "lede ok" : "lede";
+    ? `Key saved. P.O.C runs on ${nameOf(model)}.`
+    : "No key yet. P.O.C cannot coach until you add one.";
   $("remove").disabled = !apiKey;
+  $("preview").dataset.ready = String(!!apiKey);
+  $("ready-state").textContent = apiKey ? "On. Hover the dot beside your caret." : "Off until a key is saved.";
+  $("ready-state").className = apiKey ? "state ok" : "state";
+  $("ready-key").textContent = apiKey ? `Saved, ending ${apiKey.slice(-4)}` : "Missing";
+  $("ready-key").className = apiKey ? "" : "missing";
+  ledgerModel();
+};
+const ledgerModel = () => {
+  const m = MODELS.find((x) => x.id === selectedModel()) ?? MODELS[0];
+  $("ready-model").textContent = m.name;
+  $("ready-cost").textContent = money(costPer100(m));
 };
 
 // Model rows, each with its estimated cost so the choice shows what it costs.
@@ -36,6 +49,7 @@ $("estimate").textContent =
   `Estimated at list prices for about ${fmt(TOKENS_PER_USE.input)} tokens in and ${fmt(TOKENS_PER_USE.output)} out per use. A long draft costs more.`;
 
 const selectedModel = () => document.querySelector('input[name="model"]:checked')?.value ?? DEFAULT_MODEL;
+$("models").addEventListener("change", ledgerModel);
 
 chrome.storage.local.get(["apiKey", "model"]).then(({ apiKey, model }) => {
   if (apiKey) $("key").value = apiKey;
@@ -48,11 +62,12 @@ chrome.storage.local.get(["apiKey", "model"]).then(({ apiKey, model }) => {
 chrome.commands.getAll().then((cmds) => {
   const keys = cmds.find((c) => c.name === "open-coach")?.shortcut;
   const el = $("shortcut");
+  $("ready-shortcut").textContent = keys || "Not set";
   if (!keys) {
     el.textContent = "Not set";
     return;
   }
-  el.replaceChildren(...[...keys].map((k) => Object.assign(document.createElement("kbd"), { textContent: k })));
+  el.replaceChildren(...[...keys].map((k) => Object.assign(document.createElement("kbd"), { className: "key", textContent: k })));
 });
 
 $("reveal").addEventListener("click", () => {
@@ -84,7 +99,7 @@ $("form").addEventListener("submit", async (e) => {
 });
 
 $("remove").addEventListener("click", async () => {
-  if (!confirm("Remove your Anthropic API key from this browser? The coach stops working until you add one again.")) return;
+  if (!confirm("Remove your Anthropic API key from this browser? P.O.C stops working until you add one again.")) return;
   await chrome.storage.local.remove("apiKey");
   $("key").value = "";
   status("Key removed.");

@@ -19,7 +19,7 @@ cpSync("static", "dist", { recursive: true });
 // The licence travels with the files.
 mkdirSync("dist/fonts");
 const geist = "node_modules/geist/dist/fonts";
-for (const f of ["geist-sans/Geist-Regular.woff2", "geist-sans/Geist-Medium.woff2", "geist-mono/GeistMono-Regular.woff2"])
+for (const f of ["geist-sans/Geist-Regular.woff2", "geist-sans/Geist-Medium.woff2", "geist-sans/Geist-SemiBold.woff2", "geist-mono/GeistMono-Regular.woff2"])
   cpSync(`${geist}/${f}`, `dist/fonts/${f.split("/")[1]}`);
 cpSync("node_modules/geist/LICENSE.txt", "dist/fonts/OFL.txt");
 
