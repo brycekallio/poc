@@ -44,7 +44,7 @@ export function createCoach({
 
   const dot = h("button", {
     class: "dot", type: "button", hidden: true,
-    "aria-label": "P.O.C: coach this prompt", "aria-haspopup": "dialog", "aria-expanded": "false",
+    "aria-label": "P.O.C: coach this draft", "aria-haspopup": "dialog", "aria-expanded": "false",
     ...keepFocus,
   }, h("span", { class: "orb" }, wordmark()));
 
@@ -147,7 +147,7 @@ export function createCoach({
         h(
           "div",
           { class: "idle" },
-          h("p", { class: "lead" }, "Sharpen this prompt with a few quick questions."),
+          h("p", { class: "lead" }, "Sharpen this with a few quick questions."),
           h(
             "div",
             { class: "row" },
@@ -230,7 +230,7 @@ export function createCoach({
         }
       };
       show(
-        h("div", { class: "rewrite", tabindex: "0", "aria-label": "Rewritten prompt" }, prompt),
+        h("div", { class: "rewrite", tabindex: "0", "aria-label": "Rewrite" }, prompt),
         techniques.length ? h("ul", { class: "techniques", "aria-label": "Techniques applied" }, ...techniques.map((t) => h("li", {}, t))) : null,
         // The checks failed twice. Say so rather than pass it off as clean.
         unverified.length

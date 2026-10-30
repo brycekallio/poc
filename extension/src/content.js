@@ -5,7 +5,8 @@ import { createCoach } from "./panel.js";
 import { createSession } from "./session.js";
 import { writeBack } from "./writeback.js";
 
-// P.O.C sits beside your caret as a small dot while you write a prompt, and
+// P.O.C sits beside your caret as a small dot while you write (a prompt, or
+// since 2026-10-29 anything in any multi-line text box), and
 // opens when you hover it. It never speaks on its own: hovering shows what it
 // would do, and nothing reaches the model until you click "Coach this draft" or
 // press Cmd+Shift+P. (This replaces the earlier summon-only panel, 2026-10-28.
@@ -16,14 +17,29 @@ import { writeBack } from "./writeback.js";
 // the worker, and tells panel.js what to show.
 
 const host = currentHost();
-// On a site you switched on, the worker may inject this script into a tab that
-// already has it (registered for the site, then injected into the open tab).
+// What call 1 is told about where the box is. On the three chat sites it is
+// certainly a prompt; anywhere else the draft decides.
+const where = host.generic ? location.hostname : `${host.label}, an AI chat site`;
+// The worker also injects this script into tabs that were open when P.O.C was
+// installed or updated, so it can arrive in a tab that already has it.
 if (!globalThis.__pocStarted) {
   globalThis.__pocStarted = true;
   start();
 }
 
 function start() {
+  // A dot left by the previous version of the extension, whose script is now
+  // cut off from the worker.
+  for (const old of document.querySelectorAll("poc-coach")) old.remove();
+
+  // "Turn off on this site" in the toolbar popup. Followed live, no reload.
+  let off = false;
+  const readOff = ({ offSites = [] }) => {
+    off = offSites.includes(location.hostname);
+    if (off) coach.close();
+    schedule();
+  };
+
   let box = null;
   // The prompt box, found again whenever the host re-rendered it away. On a
   // site with no known selector it follows focus: the text box you are in, or
@@ -39,8 +55,8 @@ function start() {
   const currentDraft = () => (currentBox() ? readPrompt(box) : "");
 
   const session = createSession({
-    diagnose: (draft) => send({ type: "diagnose", draft, host: host.label }),
-    rewrite: (draft, answers) => send({ type: "rewrite", draft, answers, host: host.label }),
+    diagnose: (draft) => send({ type: "diagnose", draft, host: where }),
+    rewrite: (draft, answers, reader) => send({ type: "rewrite", draft, answers, reader, host: where }),
     onChange: () => coach.isOpen() && show(),
   });
   // Every intent updates the session, then redraws from it.
@@ -49,7 +65,6 @@ function start() {
     show();
   };
 
-  loadFonts((path) => chrome.runtime.getURL(path));
   const coach = createCoach({
     onHover: () => openCoach({ pin: false }),
     onAsk: () => ask(),
@@ -74,6 +89,11 @@ function start() {
 
   const show = () => coach.render(session.view(currentDraft()));
 
+  chrome.storage.local.get("offSites").then(readOff);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.offSites) readOff({ offSites: changes.offSites.newValue });
+  });
+
   // ── Following the caret ───────────────────────────────────────────────
   let frame = 0;
   function schedule() {
@@ -81,9 +101,11 @@ function start() {
   }
   function update() {
     frame = 0;
-    const box = currentBox();
+    const box = off ? null : currentBox();
     const active = box && (box === document.activeElement || box.contains(document.activeElement));
     if (!active || !readPrompt(box).trim()) return coach.setCaret(null);
+    // Fetched the first time a dot shows, not on every page P.O.C runs on.
+    loadFonts((path) => chrome.runtime.getURL(path));
     coach.setTheme(groundOf(box));
     coach.setCaret(caretRect(box, coach.layer) ?? fallbackRect(box), box.getBoundingClientRect());
   }
@@ -108,14 +130,14 @@ function start() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type !== "toggle") return;
     if (coach.isOpen()) return coach.close();
-    const box = currentBox();
+    const box = off ? null : currentBox();
     if (!box) return;
     coach.setCaret(caretRect(box, coach.layer) ?? fallbackRect(box), box.getBoundingClientRect());
     openCoach({ pin: true, askNow: true });
   });
 
   function openCoach({ pin, askNow = false }) {
-    if (!currentBox()) return; // Selector drifted. Stay silent rather than break the page.
+    if (off || !currentBox()) return; // Selector drifted. Stay silent rather than break the page.
     // The shortcut asks right away, unless this draft is already being coached.
     if (askNow && session.view(currentDraft()).kind === "idle") return ask();
     show();

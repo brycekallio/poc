@@ -3,7 +3,7 @@
 //   npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TECHNIQUES, checkRewrite } from "../src/coach.js";
+import { MESSAGE_TECHNIQUES, TECHNIQUES, checkRewrite } from "../src/coach.js";
 
 const draft = "write a summary of the q3 report for the team, not too long";
 const prompt =
@@ -62,4 +62,31 @@ test("acronyms the user wrote are not treated as shouting", () => {
   const t = decided({ deliverable: { evidence: "Summarize the NASA" } });
   const ok = checkRewrite({ prompt: "Summarize the NASA budget for leadership in one page of prose.", techniques: t }, "summarize the NASA budget");
   assert.ok(!ok.join().includes("ALL-CAPS"));
+});
+
+// A message for people is held to its own techniques and must-nots.
+const email = "hey can you send me the q3 deck, need it for the board thing";
+const message = "Could you send me the Q3 deck by Thursday? I need it for the board meeting on Friday.";
+const decidedMessage = (overrides = {}) =>
+  MESSAGE_TECHNIQUES.map((t) => ({
+    id: t.id,
+    applied: t.id !== "context",
+    evidence: { point: "Could you send me the Q3 deck", ask: "send me the Q3 deck by Thursday", context: "They already know the deck.", reasons: "I need it for the board meeting" }[t.id],
+    ...overrides[t.id],
+  }));
+
+test("a good message rewrite passes", () => {
+  assert.deepEqual(checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "person"), []);
+});
+
+test("a message is checked against the message techniques, not the prompt ones", () => {
+  const problems = checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "ai");
+  assert.ok(problems.some((p) => p.includes('"deliverable"')));
+});
+
+test("a message rewrite may not add filler or placeholders", () => {
+  const padded = `I hope this email finds you well. ${message} Thanks, [Your Name]`;
+  const problems = checkRewrite({ prompt: padded, techniques: decidedMessage() }, email, "person");
+  assert.ok(problems.some((p) => p.includes("filler")));
+  assert.ok(problems.some((p) => p.includes("placeholders")));
 });

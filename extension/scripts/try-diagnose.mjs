@@ -16,6 +16,9 @@ const flag = (name) => {
 };
 const file = flag("--file");
 const model = flag("--model") ?? DEFAULT_MODEL;
+// Where the box is, as content.js describes it: "mail.google.com", or
+// "Claude, an AI chat site" (the default).
+const host = flag("--host") ?? "Claude, an AI chat site";
 const draft = file ? readFileSync(file, "utf8") : args.join(" ");
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -30,8 +33,8 @@ if (!draft.trim()) {
 
 const t0 = Date.now();
 try {
-  const { diagnosis, questions } = await diagnose({ apiKey, model, draft, host: "Claude" });
-  console.log(`\n${model} · ${((Date.now() - t0) / 1000).toFixed(1)}s\n\nDIAGNOSIS (hidden in the panel)`);
+  const { reader, diagnosis, questions } = await diagnose({ apiKey, model, draft, host });
+  console.log(`\n${model} · ${((Date.now() - t0) / 1000).toFixed(1)}s · reader: ${reader}\n\nDIAGNOSIS (hidden in the panel)`);
   for (const d of diagnosis) console.log(`  - ${d}`);
   console.log("\nQUESTIONS");
   if (!questions.length) console.log("  (none: draft judged complete)");

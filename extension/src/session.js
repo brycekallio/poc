@@ -15,14 +15,15 @@
  * @typedef {{ prompt: string, techniques: string[], unverified?: string[] }} Rewrite
  *
  * @param {{
- *   diagnose: (draft: string) => Promise<{ questions: Question[] }>,
- *   rewrite: (draft: string, answers: Array<{ question: string, answer: string|null }>) => Promise<Rewrite>,
+ *   diagnose: (draft: string) => Promise<{ questions: Question[], reader?: "ai"|"person" }>,
+ *   rewrite: (draft: string, answers: Array<{ question: string, answer: string|null }>, reader?: "ai"|"person") => Promise<Rewrite>,
  *   onChange?: () => void,   // called after every async step lands
  * }} calls Each call throws a CoachFailure (or anything) when it fails.
  */
 export function createSession({ diagnose, rewrite, onChange = () => {} }) {
   // { draft, step: "asking"|"questions"|"rewriting"|"result"|"error",
-  //   questions, index, answers, result, error, failed: "ask"|"rewrite" }
+  //   questions, index, answers, reader, result, error, failed: "ask"|"rewrite" }
+  //   reader: who call 1 decided the draft is for, handed to call 2.
   let s = null;
   let run = 0; // bumps when a newer request supersedes an older one
 
@@ -63,7 +64,7 @@ export function createSession({ diagnose, rewrite, onChange = () => {} }) {
     ask(draft) {
       s = { draft: draft.trim() };
       return attempt(() => diagnose(s.draft), "asking",
-        ({ questions }) => ({ step: "questions", questions, index: 0, answers: {} }), "ask");
+        ({ questions, reader }) => ({ step: "questions", questions, reader, index: 0, answers: {} }), "ask");
     },
 
     /** Answer the current question (null skips it) and move to the next. */
@@ -83,7 +84,7 @@ export function createSession({ diagnose, rewrite, onChange = () => {} }) {
     rewrite() {
       if (!s?.questions) return;
       const answers = s.questions.map((q) => ({ question: q.question, answer: s.answers[q.id] ?? null }));
-      return attempt(() => rewrite(s.draft, answers), "rewriting",
+      return attempt(() => rewrite(s.draft, answers, s.reader), "rewriting",
         (result) => ({ step: "result", result }), "rewrite");
     },
 

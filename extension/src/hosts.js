@@ -29,9 +29,9 @@ export const HOSTS = [
   },
 ];
 
-// Any other site runs this script only because you switched P.O.C on there
-// (the toolbar popup), so there is no selector to know in advance: the prompt
-// box is whichever multi-line text box you are typing in.
+// Every other site (P.O.C runs everywhere since 2026-10-29) has no selector to
+// know in advance: the box is whichever multi-line text box you are typing in,
+// and call 1 decides from the draft whether it is a prompt or a message.
 export function currentHost() {
   return HOSTS.find((h) => h.match.test(location.hostname)) ?? { id: "site", label: location.hostname, generic: true };
 }

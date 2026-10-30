@@ -25,63 +25,44 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 });
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  syncSites();
+  // 0.2 registered a script per switched-on site; the manifest covers them now.
+  chrome.scripting.unregisterContentScripts({ ids: ["your-sites"] }).catch(() => {});
+  injectIntoOpenTabs();
   if (reason !== "install") return;
   const { apiKey } = await settings();
   if (!apiKey) chrome.runtime.openOptionsPage();
 });
 
-// ── Sites you switched on ─────────────────────────────────────────────
-// Claude, ChatGPT and Gemini are in the manifest. Any other site is opt-in:
-// the toolbar popup asks Chrome for that one site's permission, and the grant
-// itself is the record. This keeps the content script registered for exactly
-// the granted sites, so the list cannot drift from what Chrome allows.
-const BUILT_IN = chrome.runtime.getManifest().host_permissions;
-const SITES_ID = "your-sites";
-
-async function syncSites() {
-  const { origins = [] } = await chrome.permissions.getAll();
-  const matches = origins.filter((o) => !BUILT_IN.includes(o));
-  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SITES_ID] });
-  if (!matches.length) {
-    if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [SITES_ID] });
-    return;
-  }
-  const script = { id: SITES_ID, matches, js: ["content.js"], runAt: "document_idle", persistAcrossSessions: true };
-  await (registered.length ? chrome.scripting.updateContentScripts([script]) : chrome.scripting.registerContentScripts([script]));
+// Chrome only adds content scripts to pages loaded after the extension, so
+// tabs that were already open would show no dot until reloaded. Start P.O.C in
+// them now. Pages Chrome forbids (the Web Store, chrome://) just fail.
+async function injectIntoOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: ["https://*/*", "http://*/*"] });
+  await Promise.all(
+    tabs.map((t) => chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["content.js"] }).catch(() => {})),
+  );
 }
-chrome.permissions.onAdded.addListener(syncSites);
-chrome.permissions.onRemoved.addListener(syncSites);
-chrome.runtime.onStartup.addListener(syncSites);
 
 const handlers = {
   async diagnose({ draft, host }) {
     const { apiKey, model } = await settings();
     if (!apiKey) throw new CoachError("no-key");
-    const { diagnosis, questions } = await diagnose({ apiKey, model, draft, host });
+    const { reader, diagnosis, questions } = await diagnose({ apiKey, model, draft, host });
     // Logged here, in the worker's console, and nowhere the page can see it.
     // This is what to read when the questions come back generic.
-    console.debug("[POC] diagnosis", diagnosis, "questions", questions);
-    return { questions };
+    console.debug("[POC] reader", reader, "diagnosis", diagnosis, "questions", questions);
+    return { reader, questions };
   },
 
-  async rewrite({ draft, answers, host }) {
+  async rewrite({ draft, answers, host, reader }) {
     const { apiKey, model } = await settings();
     if (!apiKey) throw new CoachError("no-key");
-    const { prompt, techniques, unverified } = await rewrite({ apiKey, model, draft, answers, host });
+    const { prompt, techniques, unverified } = await rewrite({ apiKey, model, draft, answers, host, reader });
     return { prompt, techniques, unverified };
   },
 
   async checkKey({ apiKey, model }) {
     await checkKey({ apiKey, model });
-    return { ok: true };
-  },
-
-  // From the popup, after Chrome granted the site: start P.O.C in the open
-  // tab now, rather than on its next load.
-  async enableSite({ tabId }) {
-    await syncSites();
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
     return { ok: true };
   },
 
@@ -96,8 +77,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!handler) return false;
   // checkKey carries a key, so only accept it from our own extension pages.
   // A content script's sender.url is the host page, not chrome-extension://.
-  // enableSite injects scripts, so the same rule holds for it.
-  if ((msg.type === "checkKey" || msg.type === "enableSite") && !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
+  if (msg.type === "checkKey" && !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
 
   handler(msg)
     .then((result) => sendResponse({ ok: true, ...result }))

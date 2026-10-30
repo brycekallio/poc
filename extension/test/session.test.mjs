@@ -13,7 +13,7 @@ const questions = [
 const rewritten = { prompt: "Summarize our Q3 report for leadership in one page.", techniques: ["Clear deliverable"] };
 
 // Scripted calls: each entry is a value to return or an error to throw.
-function fixture({ diagnose = [{ questions }], rewrite = [rewritten] } = {}) {
+function fixture({ diagnose = [{ questions, reader: "person" }], rewrite = [rewritten] } = {}) {
   const calls = { diagnose: [], rewrite: [] };
   const next = (list, name) => async (...args) => {
     calls[name].push(args);
@@ -52,7 +52,7 @@ test("ask → one question at a time → summary → rewrite → result", async 
   assert.deepEqual(calls.rewrite[0], [draft, [
     { question: "Who is it for?", answer: "Leadership" },
     { question: "How long?", answer: null },
-  ]]);
+  ], "person"]); // the reader call 1 decided goes to call 2
   assert.deepEqual(session.view(draft), { kind: "result", result: rewritten });
 });
 
