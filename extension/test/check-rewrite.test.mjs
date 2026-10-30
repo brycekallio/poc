@@ -26,7 +26,7 @@ const decided = (overrides = {}) =>
   }));
 
 test("a good rewrite passes", () => {
-  assert.deepEqual(checkRewrite({ prompt, techniques: decided() }, draft), []);
+  assert.deepEqual(checkRewrite({ prompt, techniques: decided() }, draft, "ai", "A: Monday's review"), []);
 });
 
 test("every technique needs a decision", () => {
@@ -67,6 +67,7 @@ test("acronyms the user wrote are not treated as shouting", () => {
 // A message for people is held to its own techniques and must-nots.
 const email = "hey can you send me the q3 deck, need it for the board thing";
 const message = "Could you send me the Q3 deck by Thursday? I need it for the board meeting on Friday.";
+const dates = "A: By Thursday, the meeting is Friday";
 const decidedMessage = (overrides = {}) =>
   MESSAGE_TECHNIQUES.map((t) => ({
     id: t.id,
@@ -76,7 +77,7 @@ const decidedMessage = (overrides = {}) =>
   }));
 
 test("a good message rewrite passes", () => {
-  assert.deepEqual(checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "person"), []);
+  assert.deepEqual(checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "person", dates), []);
 });
 
 test("a message is checked against the message techniques, not the prompt ones", () => {
@@ -89,4 +90,12 @@ test("a message rewrite may not add filler or placeholders", () => {
   const problems = checkRewrite({ prompt: padded, techniques: decidedMessage() }, email, "person");
   assert.ok(problems.some((p) => p.includes("filler")));
   assert.ok(problems.some((p) => p.includes("placeholders")));
+});
+
+test("a rewrite may not echo the instruction or invent a date", () => {
+  const dated = checkRewrite({ prompt: `${message.replace("by Thursday", "by tomorrow")} Rewrite this draft message.`, techniques: decidedMessage({ ask: { applied: false, evidence: "x" } }) }, email, "person");
+  assert.ok(dated.some((p) => p.includes("not the instruction")));
+  assert.ok(dated.some((p) => p.includes("tomorrow")));
+  // A date the user gave, in the draft or an answer, stands.
+  assert.deepEqual(checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "person", dates), []);
 });

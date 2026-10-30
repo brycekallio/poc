@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "P.O.C \u2014 Prompt Optimization Coach",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Coaches what you are writing, where you are writing it: prompts for AI, and messages for people.",
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "https://*/*",

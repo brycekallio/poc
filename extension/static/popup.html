@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <title>P.O.C</title>
     <style>
-      /* The toolbar popup: is P.O.C on for this site, and the one switch.
+      /* The toolbar popup: one light switch for P.O.C everywhere.
          Same tokens as options.html (achromatic ledger): ink chrome, the one
          hue on the o of the mark. */
       @font-face { font-family: "Geist"; src: url(fonts/Geist-Regular.woff2) format("woff2"); font-weight: 400; }
@@ -15,7 +15,7 @@
         --ground: #ffffff; --sunk: #f2f4f7; --raised: #eceef2;
         --text: #0a0a0a; --muted: #5f6670;
         --primary: #141414; --on-primary: #ffffff;
-        --hue: #1d5fbf; --positive: #247b50;
+        --hue: #1d5fbf; --knob-o: #1d5fbf;
         --font: "Geist", Inter, system-ui, -apple-system, sans-serif;
       }
       @media (prefers-color-scheme: dark) {
@@ -23,7 +23,7 @@
           --ground: #111111; --sunk: #000000; --raised: #222222;
           --text: #ffffff; --muted: #b4b4b4;
           --primary: #ffffff; --on-primary: #0a0a0a;
-          --hue: #6ea2f0; --positive: #3fc07a;
+          --hue: #6ea2f0; --knob-o: #1d5fbf;
         }
       }
       * { box-sizing: border-box; }
@@ -34,33 +34,49 @@
       .wm { display: inline-flex; align-items: center; font-weight: 600; font-size: 16px; line-height: 1; letter-spacing: -0.01em; }
       .wm-o { display: inline-block; width: .56em; height: .56em; margin: .1em .05em 0; border-radius: 50%; background: var(--hue); }
       header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 0; }
-      .settings { padding: 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
-      .settings:hover { color: var(--text); }
+      .link { padding: 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+      .link:hover { color: var(--text); }
 
-      main { padding: 14px 16px 16px; }
-      .site { margin: 0 0 2px; font-size: 16px; line-height: 24px; font-weight: 500; overflow-wrap: anywhere; }
-      .state { margin: 0; color: var(--muted); }
-      .state.on { color: var(--positive); }
-      .btn { width: 100%; height: 36px; margin-top: 14px; border: 0; border-radius: 6px; background: var(--primary); color: var(--on-primary); font-weight: 500; transition: opacity 120ms, transform 80ms; }
+      main { padding: 18px 16px 16px; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+      .state { margin: 0; font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
+      .hint { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 16px; }
+
+      /* The light switch. Big enough to hit without aiming. */
+      .switch { position: relative; flex: none; width: 84px; height: 48px; padding: 0; border: 0; border-radius: 24px; background: var(--raised); }
+      .switch[aria-checked="true"] { background: var(--hue); }
+      .knob { position: absolute; top: 4px; left: 4px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .3); }
+      .knob .wm { font-size: 12px; color: #0a0a0a; }
+      .knob .wm-o { background: var(--knob-o); }
+      .switch[aria-checked="true"] .knob { transform: translateX(36px); }
+      [data-ready] .switch, [data-ready] .knob { transition: transform 160ms cubic-bezier(.3,.7,.3,1), background-color 160ms; }
+      .switch:active .knob { width: 44px; }
+
+      .using { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--raised); color: var(--muted); font-size: 12px; line-height: 16px; overflow-wrap: anywhere; }
+      .using:empty { display: none; }
+      .btn { width: 100%; height: 36px; margin-top: 14px; border: 0; border-radius: 6px; background: var(--primary); color: var(--on-primary); font-weight: 500; }
       .btn:hover { opacity: .88; }
-      .btn:active { transform: scale(0.98); }
-      .quiet { margin-top: 12px; padding: 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
-      .quiet:hover { color: var(--text); }
-      .note { margin: 12px 0 0; padding: 10px 12px; border-radius: 6px; background: var(--sunk); color: var(--muted); font-size: 12px; line-height: 16px; }
       [hidden] { display: none !important; }
+      @media (prefers-reduced-motion: reduce) { [data-ready] .switch, [data-ready] .knob { transition: none; } }
     </style>
   </head>
   <body>
     <header>
       <span class="wm" role="img" aria-label="P.O.C">p<span class="wm-o" aria-hidden="true"></span>c</span>
-      <button class="settings" type="button" id="settings">Settings</button>
+      <button class="link" type="button" id="settings">Settings</button>
     </header>
     <main>
-      <p class="site" id="site">This page</p>
-      <p class="state" id="state">Checking…</p>
-      <button class="btn" type="button" id="enable" hidden>Turn on for this site</button>
-      <button class="quiet" type="button" id="disable" hidden>Turn off on this site</button>
-      <p class="note" id="note" hidden></p>
+      <div class="row">
+        <div>
+          <p class="state" id="state">On</p>
+          <p class="hint" id="hint"></p>
+        </div>
+        <button class="switch" type="button" id="switch" role="switch" aria-checked="true" aria-label="P.O.C">
+          <span class="knob" aria-hidden="true"><span class="wm">p<span class="wm-o"></span>c</span></span>
+        </button>
+      </div>
+      <button class="btn" type="button" id="finish" hidden>Finish setup</button>
+      <p class="using" id="using"></p>
     </main>
     <script src="popup.js"></script>
   </body>

@@ -19,7 +19,9 @@ import { writeBack } from "./writeback.js";
 const host = currentHost();
 // What call 1 is told about where the box is. On the three chat sites it is
 // certainly a prompt; anywhere else the draft decides.
-const where = host.generic ? location.hostname : `${host.label}, an AI chat site`;
+const where = location.protocol === "chrome-extension:"
+  ? "a practice box"
+  : host.generic ? location.hostname : `${host.label}, an AI chat site`;
 // The worker also injects this script into tabs that were open when P.O.C was
 // installed or updated, so it can arrive in a tab that already has it.
 if (!globalThis.__pocStarted) {
@@ -32,10 +34,10 @@ function start() {
   // cut off from the worker.
   for (const old of document.querySelectorAll("poc-coach")) old.remove();
 
-  // "Turn off on this site" in the toolbar popup. Followed live, no reload.
+  // The light switch in the toolbar popup. Followed live, no reload.
   let off = false;
-  const readOff = ({ offSites = [] }) => {
-    off = offSites.includes(location.hostname);
+  const followSwitch = ({ enabled = true }) => {
+    off = !enabled;
     if (off) coach.close();
     schedule();
   };
@@ -89,9 +91,9 @@ function start() {
 
   const show = () => coach.render(session.view(currentDraft()));
 
-  chrome.storage.local.get("offSites").then(readOff);
+  chrome.storage.local.get("enabled").then(followSwitch);
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.offSites) readOff({ offSites: changes.offSites.newValue });
+    if (area === "local" && changes.enabled) followSwitch({ enabled: changes.enabled.newValue });
   });
 
   // ── Following the caret ───────────────────────────────────────────────

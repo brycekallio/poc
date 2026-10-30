@@ -9,7 +9,7 @@ import panelCss from "./panel.css";
 
 const POPUP_WIDTH = 320;
 // Errors the settings page can fix; the rest get "Try again". Codes from coach.js describeError().
-const FIXABLE = ["no-key", "bad-key", "bad-model", "forbidden"];
+const FIXABLE = ["no-key", "no-model", "local-down", "bad-key", "bad-model", "forbidden"];
 const OPEN_DELAY = 140; // ms of hover before opening, so passing over the dot does nothing
 const CLOSE_DELAY = 260; // ms of grace after the pointer leaves, so moving to the popup does not close it
 

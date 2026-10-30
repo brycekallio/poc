@@ -6,11 +6,10 @@ npm run build        # or: npm run watch
 ```
 
 Then `chrome://extensions` → Developer mode → **Load unpacked** → select `extension/dist`
-(not this folder: Chrome refuses `node_modules`). Click the toolbar icon to open settings and
-paste an Anthropic API key. After each rebuild, hit reload on the extension card and refresh
-the host tab.
+(not this folder: Chrome refuses `node_modules`). The setup page opens by itself on first install.
+After each rebuild, hit reload on the extension card; open tabs pick up the new version by themselves.
 
-While you write in Claude, ChatGPT or Gemini, a small dot sits beside your caret. Hover it to open **P.O.C**, then click **Coach this draft**. **Cmd+Shift+P** coaches straight away. **Esc** closes it.
+While you write in any multi-line text box, a small dot sits beside your caret. Hover it to open **P.O.C**, then click **Coach this draft**. **Cmd+Shift+P** coaches straight away. **Esc** closes it.
 Rebind at `chrome://extensions/shortcuts`.
 
 ## Layout

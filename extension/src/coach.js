@@ -1,14 +1,14 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { DEFAULT_MODEL, MODELS } from "./coach-models.js";
+import { CoachError, complete } from "./llm.js";
 
 // The model calls. Imported by the service worker and by scripts/try-diagnose.mjs,
 // so the system prompt can be tuned from a terminal without reloading Chrome.
 //
 // Never import this from content.js: it takes the API key.
+//
+// `config` is { provider, apiKey, baseUrl, model }; llm.js talks to the provider.
 
-export { DEFAULT_MODEL, MODELS } from "./coach-models.js";
+export { CoachError, checkConnection, describeError, listModels, ready } from "./llm.js";
 
 // Two is an interaction; four is a form. The prompt asks for at most three and
 // the code enforces it, because a schema cannot.
@@ -33,6 +33,9 @@ const Diagnosis = z.object({
     }),
   ),
 });
+
+// The panel already offers these. Smaller models add them anyway.
+const OFFERED = /^(skip|other|none|not sure|n\/a)\.?$/i;
 
 export const DIAGNOSE_SYSTEM = `You are a writing coach that lives in the browser's text boxes. The user is partway through writing something and has paused to ask you for help. Your job right now is not to rewrite it. Find out what they meant, so that the rewrite that comes next is the one they would have written with more time.
 
@@ -65,10 +68,9 @@ Write the questions in the same language as the draft.`;
  * `host` names where the box is: an AI chat site's name, or a hostname.
  * @returns {Promise<{ reader: "ai"|"person", questions: Array<{id: string, quote: string, question: string, options: string[]}>, diagnosis: string[] }>}
  */
-export async function diagnose({ apiKey, model = DEFAULT_MODEL, draft, host }) {
+export async function diagnose({ config, draft, host }) {
   const where = host ? ` They are writing it on ${host}.` : "";
-  const out = await request(clientFor(apiKey), {
-    model,
+  const out = await complete(config, {
     system: DIAGNOSE_SYSTEM,
     messages: [
       {
@@ -83,9 +85,9 @@ export async function diagnose({ apiKey, model = DEFAULT_MODEL, draft, host }) {
     reader: out.reader,
     diagnosis: out.diagnosis,
     questions: out.questions
+      .map((q) => ({ ...q, quote: inDraft(q.quote, draft), options: q.options.filter((o) => !OFFERED.test(o.trim())).slice(0, 4) }))
       .filter((q) => q.question && q.options.length >= 2)
-      .slice(0, MAX_QUESTIONS)
-      .map((q) => ({ ...q, quote: inDraft(q.quote, draft), options: q.options.slice(0, 4) })),
+      .slice(0, MAX_QUESTIONS),
   };
 }
 
@@ -178,12 +180,11 @@ Return the rewritten message in "prompt", and for every technique an entry: appl
 
 /**
  * Call 2: rewrite the draft with the user's answers, for the reader call 1 chose.
- * @param {{ apiKey: string, model?: string, draft: string, answers: Array<{question: string, answer: string|null}>, host?: string, reader?: "ai"|"person" }} p
+ * @param {{ config: object, draft: string, answers: Array<{question: string, answer: string|null}>, host?: string, reader?: "ai"|"person" }} p
  * @returns {Promise<{ prompt: string, techniques: string[], applied: Array<{id: string, evidence: string}>, unverified: string[] }>}
  */
-export async function rewrite({ apiKey, model = DEFAULT_MODEL, draft, answers, host, reader = "ai" }) {
+export async function rewrite({ config, draft, answers, host, reader = "ai" }) {
   if (reader !== "person") reader = "ai";
-  const client = clientFor(apiKey);
   const techniques = techniquesFor(reader);
   const answered = answers
     .map((a) => `Q: ${a.question}\nA: ${a.answer ?? "(skipped: no preference given)"}`)
@@ -197,16 +198,16 @@ export async function rewrite({ apiKey, model = DEFAULT_MODEL, draft, answers, h
     },
   ];
 
-  let out = await requestRewrite(client, model, messages, reader);
-  let problems = checkRewrite(out, draft, reader);
+  let out = await requestRewrite(config, messages, reader);
+  let problems = checkRewrite(out, draft, reader, answered);
   if (problems.length) {
     // One retry, naming exactly what failed.
     messages.push(
       { role: "assistant", content: JSON.stringify(out) },
       { role: "user", content: `That rewrite did not pass the checks:\n- ${problems.join("\n- ")}\nReturn a corrected rewrite.` },
     );
-    out = await requestRewrite(client, model, messages, reader);
-    problems = checkRewrite(out, draft, reader);
+    out = await requestRewrite(config, messages, reader);
+    problems = checkRewrite(out, draft, reader, answered);
   }
 
   const applied = out.techniques.filter((t) => t.applied && evidenceIn(t.evidence, out.prompt));
@@ -221,42 +222,21 @@ export async function rewrite({ apiKey, model = DEFAULT_MODEL, draft, answers, h
   };
 }
 
-async function requestRewrite(client, model, messages, reader) {
+async function requestRewrite(config, messages, reader) {
   const system = reader === "person" ? MESSAGE_REWRITE_SYSTEM : REWRITE_SYSTEM;
-  const out = await request(client, { model, system, messages, schema: SCHEMAS[reader] });
+  const out = await complete(config, { system, messages, schema: SCHEMAS[reader] });
   if (!out.prompt?.trim()) throw new CoachError("unparseable");
   return out;
 }
 
-/**
- * The one way both calls reach the model: structured output, medium effort,
- * the safety fallback where the model has one, and a stop reason turned into
- * a CoachError.
- */
-async function request(client, { model, system, messages, schema }) {
-  const res = await client.beta.messages.parse({
-    model,
-    max_tokens: 16000,
-    system,
-    messages,
-    // Medium effort: the popup is open in the middle of someone's typing, and
-    // waiting is part of the experience.
-    output_config: { effort: "medium", format: betaZodOutputFormat(schema) },
-    // If the safety classifier declines, retry on Anthropic's recommended
-    // fallback model. A prompt coach sees whatever topic the user is working on.
-    ...(hasFallback(model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
-  });
-  if (res.stop_reason === "refusal") throw new CoachError("refused");
-  if (res.stop_reason === "max_tokens") throw new CoachError("truncated");
-  if (!res.parsed_output) throw new CoachError("unparseable");
-  return res.parsed_output;
-}
+// Dates and times: the one kind of invented fact code can catch.
+const WHEN = /\b(today|tonight|tomorrow|next week|this week|end of (?:day|week)|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b/gi;
 
 /**
  * The code half of "every time". Returns a list of problems; empty means it
  * passed. Exported so it can be tested without the API.
  */
-export function checkRewrite(out, draft, reader = "ai") {
+export function checkRewrite(out, draft, reader = "ai", answered = "") {
   const problems = [];
   const prompt = out.prompt ?? "";
   const byId = new Map((out.techniques ?? []).map((t) => [t.id, t]));
@@ -271,6 +251,12 @@ export function checkRewrite(out, draft, reader = "ai") {
   }
 
   // The must-nots, as far as code can see them.
+  // Smaller models echo the instruction, or invent the deadline a message "should" have.
+  if (/rewrite this draft|an AI chat site/i.test(prompt) && !/rewrite this draft|an AI chat site/i.test(draft))
+    problems.push("Return only the rewritten text, not the instruction.");
+  const invented = (prompt.match(WHEN) ?? []).filter((w) => !new RegExp(`\\b${w}\\b`, "i").test(`${draft} ${answered}`));
+  if (invented.length) problems.push(`The user never said this: "${invented[0]}". Remove it.`);
+
   const inDraftCaps = new Set(draft.match(/\b[A-Z]{2,}\b/g) ?? []);
   const shouting = (prompt.match(/\b[A-Z]{4,}\b/g) ?? []).filter((w) => !inDraftCaps.has(w));
   if (shouting.length) problems.push(`Remove ALL-CAPS emphasis: ${[...new Set(shouting)].join(", ")}.`);
@@ -297,67 +283,10 @@ function evidenceIn(evidence, prompt) {
 
 const wordCount = (t) => t.split(/\s+/).filter(Boolean).length;
 
-function clientFor(apiKey, { maxRetries = 1 } = {}) {
-  return new Anthropic({
-    apiKey,
-    // Required in an extension. The flag exists to stop a developer shipping
-    // their own key in a web page; this is the user's key in the user's browser.
-    dangerouslyAllowBrowser: true,
-    maxRetries,
-  });
-}
-
-// Unknown ids (a model typed in by hand, say) get the fallback; the API is the judge.
-const hasFallback = (model) => MODELS.find((m) => m.id === model)?.fallback !== false;
-
 // A quote is shown as the user's own words, so it must be. Keep it only if it
 // appears in the draft (ignoring case and runs of whitespace); otherwise "".
 function inDraft(quote, draft) {
   const norm = (t) => t.toLowerCase().replace(/\s+/g, " ").trim();
   const q = norm(quote ?? "").replace(/^["'“”‘’]+|["'“”‘’]+$/g, "");
   return q && norm(draft).includes(q) ? quote.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "") : "";
-}
-
-/** A failure the panel knows how to explain. `code` is the stable part. */
-export class CoachError extends Error {
-  constructor(code, detail) {
-    super(detail ?? code);
-    this.code = code;
-  }
-}
-
-/** Map any thrown error to a { code, message } the panel can show. */
-export function describeError(err) {
-  if (err instanceof CoachError) {
-    const messages = {
-      "no-key": "No API key yet.",
-      refused: "Claude declined to coach this draft.",
-      truncated: "The response was cut off. Try again.",
-      unparseable: "The response came back malformed. Try again.",
-    };
-    return { code: err.code, message: messages[err.code] ?? err.message };
-  }
-  // Most specific first. In the TS SDK APIConnectionError subclasses APIError.
-  if (err instanceof Anthropic.AuthenticationError)
-    return { code: "bad-key", message: "That API key was rejected." };
-  if (err instanceof Anthropic.PermissionDeniedError)
-    return { code: "forbidden", message: "This key cannot use that model." };
-  if (err instanceof Anthropic.NotFoundError)
-    return { code: "bad-model", message: "That model was not found for this key." };
-  if (err instanceof Anthropic.RateLimitError)
-    return { code: "rate-limit", message: "Rate limited. Wait a moment and try again." };
-  if (err instanceof Anthropic.APIConnectionError)
-    return { code: "network", message: "Could not reach the Anthropic API." };
-  if (err instanceof Anthropic.APIError)
-    return { code: "api", message: `API error ${err.status ?? ""}: ${err.message}`.trim() };
-  return { code: "unknown", message: String(err?.message ?? err) };
-}
-
-/** The cheapest call that proves a key and model work. Used by the options page. */
-export async function checkKey({ apiKey, model = DEFAULT_MODEL }) {
-  await clientFor(apiKey, { maxRetries: 0 }).messages.create({
-    model,
-    max_tokens: 16,
-    messages: [{ role: "user", content: "Reply with OK." }],
-  });
 }

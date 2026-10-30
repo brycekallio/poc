@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up P.O.C</title>
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="wrap">
+        <span class="tile" aria-hidden="true"><span class="wm">p<span class="wm-o"></span>c</span></span>
+        <span class="product">Prompt Optimization Coach</span>
+      </div>
+    </header>
+
+    <main class="wrap guide">
+      <h1>Let's get P.O.C running</h1>
+      <p class="lede">It needs an AI to talk to. Use a free one on your computer, or your own key.</p>
+
+      <section class="card" aria-labelledby="free-h">
+        <h2 id="free-h">Free, on your computer</h2>
+        <p id="local-say" class="say" role="status">Looking for Ollama…</p>
+        <p id="local-more"></p>
+        <div class="meter" id="meter" hidden><span id="meter-bar"></span></div>
+        <div class="row">
+          <a class="btn primary" id="get-ollama" href="https://ollama.com/download" target="_blank" rel="noreferrer" hidden>Download Ollama</a>
+          <button class="btn primary" type="button" id="pull" hidden></button>
+          <select class="select" id="local-model" aria-label="Model" style="max-width:260px" hidden></select>
+          <button class="btn primary" type="button" id="use-local" hidden>Use this</button>
+        </div>
+
+        <p class="or">Or use a key from a provider. You pay them per use.</p>
+        <div class="chips" id="chips"></div>
+        <form id="key-form" novalidate>
+          <div class="joined">
+            <input id="key" type="password" autocomplete="off" spellcheck="false" aria-label="API key" />
+            <button type="submit" id="connect">Connect</button>
+          </div>
+          <p class="help" id="key-help"></p>
+        </form>
+      </section>
+
+      <section class="card" id="try-step" data-dim="true" aria-labelledby="try-h">
+        <h2 id="try-h">Try it</h2>
+        <p id="try-say">Connect a model above first.</p>
+        <textarea class="try" id="try" disabled spellcheck="false" aria-label="Practice box">hey can you send me the q3 deck, need it for the board thing</textarea>
+        <div class="row">
+          <button class="btn primary" type="button" id="done" hidden>Done</button>
+        </div>
+      </section>
+    </main>
+    <script src="setup.js"></script>
+    <script src="content.js"></script>
+  </body>
+</html>
