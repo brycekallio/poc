@@ -2,7 +2,9 @@
 
 A small coach that lives in every text box in Chrome. Write a draft, hover the dot beside your cursor, answer a few quick questions about what you meant, and get a sharper version written back into the box.
 
-![P.O.C turning a vague draft into a clear prompt](docs/demo.gif)
+[![P.O.C turning a vague draft into a clear prompt](docs/demo.gif)](docs/demo.mp4)
+
+**[Watch the 30-second demo](docs/demo.mp4)**, with sound.
 
 - **Works everywhere you write.** ChatGPT, Claude, Gemini, Gmail, Slack in the browser, GitHub comments, any multi-line text box.
 - **Knows who is reading.** A prompt for an AI gets prompt coaching. An email to a person gets a clearer message, not an AI prompt.
