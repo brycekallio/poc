@@ -1,4 +1,5 @@
 import { checkConnection, describeError, diagnose, listModels, ready, rewrite } from "./coach.js";
+import { CHAT_URLS } from "./hosts.js";
 import { loadConfig, migrate } from "./settings.js";
 
 // The only place a coaching request reads an API key. Content scripts share a
@@ -63,7 +64,7 @@ async function allowLocalServers() {
 // tabs that were already open would show no dot until reloaded. Start P.O.C in
 // them now. Pages Chrome forbids (the Web Store, chrome://) just fail.
 async function injectIntoOpenTabs() {
-  const tabs = await chrome.tabs.query({ url: ["https://*/*", "http://*/*"] });
+  const tabs = await chrome.tabs.query({ url: CHAT_URLS });
   await Promise.all(
     tabs.map((t) => chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["content.js"] }).catch(() => {})),
   );

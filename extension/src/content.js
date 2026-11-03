@@ -1,6 +1,6 @@
 import { caretRect, groundOf } from "./caret.js";
 import { loadFonts } from "./fonts.js";
-import { currentHost, findPromptBox, readPrompt } from "./hosts.js";
+import { currentHost, findPromptBox, followsFocus, readPrompt } from "./hosts.js";
 import { createCoach } from "./panel.js";
 import { createSession } from "./session.js";
 import { writeBack } from "./writeback.js";
@@ -17,8 +17,9 @@ import { writeBack } from "./writeback.js";
 // the worker, and tells panel.js what to show.
 
 const host = currentHost();
-// What call 1 is told about where the box is. On the three chat sites it is
-// certainly a prompt; anywhere else the draft decides.
+// What call 1 is told about where the box is. On a chat site it is certainly a
+// prompt (P.O.C only runs on chat sites since 2026-11-02); on the setup page the
+// draft decides.
 const where = location.protocol === "chrome-extension:"
   ? "a practice box"
   : host.generic ? location.hostname : `${host.label}, an AI chat site`;
@@ -47,7 +48,7 @@ function start() {
   // site with no known selector it follows focus: the text box you are in, or
   // the last one you were in.
   const currentBox = () => {
-    if (host.generic) {
+    if (followsFocus(host)) {
       const focused = findPromptBox(host);
       if (focused) box = focused;
       return box?.isConnected ? box : null;
