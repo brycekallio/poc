@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 # iCloud Desktop & Documents sync stamps files with extended attributes that codesign rejects
 # ("detritus not allowed"). A .nosync folder is ignored by iCloud; dist is a symlink to it.
-VERSION=0.1.0
+VERSION=0.2.0
 if [ ! -L dist ]; then rm -rf dist; mkdir -p dist.nosync; ln -s dist.nosync dist; fi
 APP=dist/POC.app
 rm -rf "$APP"
@@ -19,6 +19,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fonts"
 
 swift build -c release --arch arm64
 cp .build/arm64-apple-macosx/release/POCApp "$APP/Contents/MacOS/POC"
+
+# The coaching engine: the extension's own JS, bundled for a web view by `npm run build` in ../extension.
+if [ ! -f Resources/web/engine.js ]; then (cd ../extension && npm run build >/dev/null); fi
+cp -R Resources/web "$APP/Contents/Resources/web"
 
 # Geist (SIL OFL 1.1), the extension's typeface; licence travels with it.
 GEIST=../extension/node_modules/geist
@@ -61,6 +65,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <!-- The engine web view calls the model over plain http: Ollama and LM Studio run on localhost,
+       and an "Other" server may sit on the local network. HTTPS providers are unaffected. -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key><true/>
+    <key>NSAllowsArbitraryLoadsInWebContent</key><true/>
+  </dict>
 </dict>
 </plist>
 PLIST

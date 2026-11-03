@@ -7,13 +7,18 @@ import POCCore
 final class CardPanel: NSPanel {
     var onEscape: () -> Void = {}
     var onReturn: () -> Void = {}
+    /// 1–9: pick that numbered option.
+    var onDigit: (Int) -> Void = { _ in }
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 53: onEscape()          // esc
         case 36, 76: onReturn()      // return, keypad enter
-        default: super.keyDown(with: event)
+        default:
+            if let c = event.charactersIgnoringModifiers, c.count == 1, let n = Int(c), n >= 1,
+               event.modifierFlags.intersection([.command, .control, .option]).isEmpty { onDigit(n) }
+            else { super.keyDown(with: event) }
         }
     }
     override func cancelOperation(_ sender: Any?) { onEscape() }
@@ -25,8 +30,14 @@ final class PanelController {
     private let host: NSHostingView<CardView>
     private var mouseMonitor: Any?
     private var hideTimer: Timer?
-    /// Called when the user presses Use/Copy.
+    /// Called when the user presses Use/Copy (or return on the rewrite).
     var onUse: () -> Void = {}
+    /// Return/digits/buttons of the coaching steps; the app delegate owns the session.
+    var onReturn: () -> Void = {}
+    var onDigit: (Int) -> Void = { _ in }
+    /// The user closed the card (esc or the X): stop any model call. Not called by programmatic hides.
+    var onDismiss: () -> Void = {}
+    var coachModel: CardModel { model }
     /// Called when the user clicked outside the panel while it was open (the selection is gone).
     var onSelectionLost: () -> Void = {}
 
@@ -42,13 +53,14 @@ final class PanelController {
         panel.backgroundColor = .clear
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        model.onClose = { [weak self] in self?.hide() }
+        model.onClose = { [weak self] in self?.dismiss() }
         model.onUse = { [weak self] in self?.onUse() }
         model.onAction = { action in
             switch action { case .openAccessibility: Permissions.openAccessibilitySettings() }
         }
-        panel.onEscape = { [weak self] in self?.hide() }
-        panel.onReturn = { [weak self] in self?.onUse() }
+        panel.onEscape = { [weak self] in self?.dismiss() }
+        panel.onReturn = { [weak self] in self?.onReturn() }
+        panel.onDigit = { [weak self] n in self?.onDigit(n) }
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -76,6 +88,23 @@ final class PanelController {
         let size = host.fittingSize
         panel.setContentSize(size)
         panel.setFrameTopLeftPoint(NSPoint(x: panel.frame.minX, y: top))
+        keepOnScreen()
+        Debug.snapshot(host, name: "card-\(Int(Date().timeIntervalSince1970 * 1000))")
+    }
+
+    /// The card grows as the steps change; nudge it back if it now hangs off the bottom of the screen.
+    private func keepOnScreen() {
+        guard let visible = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
+        var f = panel.frame
+        if f.minY < visible.minY + 8 { f.origin.y = visible.minY + 8 }
+        if f.maxY > visible.maxY { f.origin.y = visible.maxY - f.height }
+        if f != panel.frame { panel.setFrame(f, display: true) }
+    }
+
+    /// The user closed the card.
+    func dismiss() {
+        hide()
+        onDismiss()
     }
 
     func hide() {
