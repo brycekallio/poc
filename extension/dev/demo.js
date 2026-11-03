@@ -53,8 +53,8 @@ const coach = createCoach({
   onRewrite: then(() => (coach.pin(), session.rewrite())),
   onRetry: then(() => (coach.pin(), session.retry())),
   onLeaveResult: then(() => session.leaveResult()),
-  onUse: (prompt) => {
-    if (writeBack(box, prompt)) {
+  onUse: async (prompt) => {
+    if ((await writeBack(box, prompt)).ok) {
       session.used();
       coach.close();
     }

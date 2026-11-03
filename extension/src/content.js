@@ -52,7 +52,9 @@ function start() {
       if (focused) box = focused;
       return box?.isConnected ? box : null;
     }
-    return box?.isConnected ? box : (box = findPromptBox(host));
+    // A remembered box that is hidden now (the site swapped composers) is as
+    // good as gone: writing into it would show the user nothing.
+    return box?.isConnected && box.getClientRects().length ? box : (box = findPromptBox(host));
   };
   const currentDraft = () => (currentBox() ? readPrompt(box) : "");
 
@@ -156,7 +158,9 @@ function start() {
 
   async function use(prompt) {
     const box = currentBox();
-    if (box && writeBack(box, prompt)) {
+    const { ok, via } = box ? await writeBack(box, prompt) : { ok: false };
+    if (ok) {
+      console.debug("[POC] wrote back via", via);
       session.used();
       coach.close();
       return;
