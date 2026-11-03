@@ -9,7 +9,7 @@ Then `chrome://extensions` → Developer mode → **Load unpacked** → select `
 (not this folder: Chrome refuses `node_modules`). The setup page opens by itself on first install.
 After each rebuild, hit reload on the extension card; open tabs pick up the new version by themselves.
 
-While you write in any multi-line text box, a small dot sits beside your caret. Hover it to open **P.O.C**, then click **Coach this draft**. **Cmd+Shift+P** coaches straight away. **Esc** closes it.
+P.O.C is short for Prompt Optimization Coach. While you write in the chat box on an AI chat site (the list is `src/hosts.js`), a small dot sits beside your caret. Hover it to open **P.O.C**, then click **Coach this draft**. **Cmd+Shift+P** coaches straight away. **Esc** closes it.
 Rebind at `chrome://extensions/shortcuts`.
 
 ## Layout

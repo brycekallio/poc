@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "P.O.C \u2014 Prompt Optimization Coach",
   "version": "0.4.0",
-  "description": "Coaches what you are writing, where you are writing it: prompts for AI, and messages for people.",
+  "description": "Prompt Optimization Coach: sharpens the prompt you are writing on ChatGPT, Claude, Gemini and other AI chat sites.",
   "permissions": [
     "storage",
     "scripting",

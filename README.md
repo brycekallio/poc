@@ -1,13 +1,12 @@
 # P.O.C — Prompt Optimization Coach
 
-A small coach that lives in every text box in Chrome. Write a draft, hover the dot beside your cursor, answer a few quick questions about what you meant, and get a sharper version written back into the box.
+**P.O.C stands for Prompt Optimization Coach.** It's a small Chrome extension that coaches the prompt you're writing on an AI chat site. Write a draft, hover the dot beside your cursor, answer a few quick questions about what you meant, and get a sharper prompt written back into the chat box.
 
 ![P.O.C turning a vague draft into a clear prompt](docs/demo.gif)
 
 Prefer sound? [Download the demo video](https://github.com/brycekallio/poc/raw/main/docs/demo.mp4) (30 seconds, 2.7 MB).
 
-- **Works everywhere you write.** ChatGPT, Claude, Gemini, Gmail, Slack in the browser, GitHub comments, any multi-line text box.
-- **Knows who is reading.** A prompt for an AI gets prompt coaching. An email to a person gets a clearer message, not an AI prompt.
+- **Built for AI chat.** It shows up on ChatGPT, Claude, Gemini, Google AI Studio, Microsoft Copilot, Perplexity, Grok, DeepSeek, Le Chat, Poe, Meta AI, Kimi, Qwen, T3 Chat, HuggingChat and OpenRouter. It stays out of Gmail, Google Docs and search bars.
 - **Asks before it rewrites.** It asks about what only you know, such as who it's for and what matters most. It doesn't guess.
 - **Never interrupts.** Nothing is sent anywhere until you click **Coach this draft**.
 - **Free if you want it to be.** Run it on your own computer with Ollama, or bring a key from Anthropic, OpenAI or Google.
@@ -69,12 +68,12 @@ In **Settings**, choose **Other**, then enter the server's address and a key if 
 
 ## Using it
 
-1. Click into any multi-line text box and start typing. A small **p●c** dot appears beside your cursor.
+1. Open an AI chat site, click into the chat box and start typing. A small **p●c** dot appears beside your cursor.
 2. Hover the dot and click **Coach this draft**, or press **⌘⇧P** (**Ctrl+Shift+P** on Windows).
 3. Answer the questions, or skip them.
-4. Check the rewrite and click **Use this**.
+4. Check the rewrite and click **Use this** to put it in the chat box.
 
-**To turn it off,** click the P.O.C icon in your toolbar and flip the switch. The dot disappears everywhere straight away, and the icon shows **OFF**.
+**To turn it off,** click the P.O.C icon in your toolbar and flip the switch. The dot disappears straight away, and the icon shows **OFF**.
 
 ## Privacy
 
@@ -83,20 +82,21 @@ There's no P.O.C server, account or analytics.
 - **Your text** is read only inside your browser. It's sent to the AI you chose only when you click **Coach this draft**. With Ollama, it never leaves your computer.
 - **Your keys** are stored only in this browser, are never synced, and are sent only to that key's provider.
 
-Chrome will warn that P.O.C can "read and change all your data on all websites". It needs that to show the dot in any text box. The code is here for anyone to check, and [PRIVACY.md](store/PRIVACY.md) has the details.
+Chrome will warn that P.O.C can "read and change all your data on all websites". It needs that to reach the AI you chose, including one on your own computer. The dot itself only runs on the AI chat sites listed above. The code is here for anyone to check, and [PRIVACY.md](store/PRIVACY.md) has the details.
 
 ## Troubleshooting
 
 | What you see | What to do |
 |---|---|
-| No dot | Check that the toolbar switch is **On**. The dot appears only in multi-line boxes with text in them, not search bars or logins. |
+| No dot | Check that the toolbar switch is **On**. You also need to be on one of the AI chat sites above, and the dot appears only once the chat box has text in it. |
 | "Ollama is not running" | Open the Ollama app. Its icon should be in your menu bar or system tray. |
 | "The response came back malformed" | Try again, or pick a larger model in **Settings**. Small models sometimes return broken answers. |
 | Rate limit message | You've hit the provider's limit, which is common on free tiers. Wait a minute. |
-| A site's box doesn't work | Google Docs and other canvas-based editors aren't normal text boxes, so P.O.C can't read them. |
+| A chat site's box doesn't work | Chat sites change their pages without warning. [Open an issue](https://github.com/brycekallio/poc/issues) with the site and what you saw. |
+| The Insert button put the text on my clipboard instead | P.O.C couldn't write into the box on that site, so it copied the text. Paste it with **⌘V**. |
 | P.O.C says it was updated | Reload the page. |
 
-P.O.C runs in Chrome only, so it can't reach desktop apps.
+P.O.C runs in Chrome only, so it can't reach desktop apps such as the Claude or ChatGPT apps. A shortcut-based version for those is planned.
 
 ## Build from source
 
