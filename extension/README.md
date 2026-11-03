@@ -47,6 +47,13 @@ This prints the hidden diagnosis next to the questions. When a question comes ba
 read the diagnosis first. In Chrome, the same diagnosis is logged to the service worker's console
 (`chrome://extensions` → POC → "service worker").
 
+## Timing and icons
+
+```bash
+npm run time -- --provider ollama --model qwen2.5:latest      # seconds for call 1 and call 2, and when the first words of the rewrite appear
+npm run icons                                                  # redraws static/icons/icon.svg and every PNG size from it
+```
+
 ## Two things to know
 - **Invoked, not ambient.** POC only appears when summoned. A coach that interrupts mid-typing does not survive daily use.
 - **Selectors will break.** `src/hosts.js` holds every DOM hook in one place because these sites change markup without notice. When a host stops working, that file is the only thing to fix.
