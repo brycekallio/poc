@@ -43,10 +43,29 @@ const ctx = await esbuild.context({
   logLevel: "info",
 });
 
+// The Mac app's coaching engine: the same coach.js and llm.js, bundled for a web view
+// (desktop/Resources/web/engine.js, gitignored). A second entry in this build, so one
+// `npm run build` and one `npm test` cover both products.
+const web = "../desktop/Resources/web";
+mkdirSync(web, { recursive: true });
+cpSync("../desktop/web-static/index.html", `${web}/index.html`);
+const desktop = await esbuild.context({
+  entryPoints: { engine: "src/desktop.js" },
+  outdir: web,
+  bundle: true,
+  format: "iife",
+  target: "safari17", // macOS 14's web view
+  legalComments: "none",
+  logLevel: "info",
+});
+
 if (watch) {
+  await desktop.watch();
   await ctx.watch();
   console.log("Watching src/. static/ is copied once; rerun after editing it.");
 } else {
   await ctx.rebuild();
   await ctx.dispose();
+  await desktop.rebuild();
+  await desktop.dispose();
 }

@@ -1,0 +1,7 @@
+<!doctype html>
+<!-- The hidden page that runs the shared coaching code (engine.js, built from extension/src/desktop.js).
+     Never shown. The policy lets it load only its own script and talk to model servers over http(s). -->
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src http: https:">
+<title>POC engine</title>
+<script src="engine.js"></script>

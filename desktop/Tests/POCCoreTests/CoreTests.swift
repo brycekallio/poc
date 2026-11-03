@@ -187,7 +187,3 @@ final class PanelPlacementTests: XCTestCase {
         XCTAssertEqual(p.x, 1500)
     }
 }
-
-final class FakeRewriteTests: XCTestCase {
-    func testUppercases() { XCTAssertEqual(FakeRewrite.rewrite("fix my prompt"), "FIX MY PROMPT") }
-}

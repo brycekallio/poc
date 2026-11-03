@@ -1,6 +1,9 @@
 import AppKit
 import POCCore
+import POCEngine
+import SwiftUI
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var hotkey: Hotkey?
@@ -9,20 +12,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let keys = MacKeys()
     private let secure = MacSecureInput()
     private var accessItem: NSMenuItem!
+    private var modelItem: NSMenuItem!
+
+    private let settings = CoachSettings()
+    /// The coach: the extension's JS in a hidden web view. Started at launch so the first press is not slow.
+    private lazy var engine = WebCoachEngine(directory: Self.webDirectory)
 
     /// What the open card is about.
     private var target: NSRunningApplication?
-    private var rewrite = ""
+    private var session: CoachSession?
+    private var coachApp = ""
+    private var coachDraft = ""
     private var selectionLost = false
     private var busy = false
-    /// The card currently on screen, when it is the rewrite card.
-    private var readyState: CardState?
+
+    /// The bundled engine: the app's Resources/web, or a checkout's desktop/Resources/web when run with `swift run`.
+    private static var webDirectory: URL {
+        if let dir = ProcessInfo.processInfo.environment["POC_WEB_DIR"] { return URL(fileURLWithPath: dir) }
+        return (Bundle.main.resourceURL ?? URL(fileURLWithPath: ".")).appendingPathComponent("web")
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Theme.registerFonts()
         buildMenu()
         hotkey = Hotkey { [weak self] in self?.trigger() }
         panel.onUse = { [weak self] in self?.use() }
+        panel.onReturn = { [weak self] in self?.pressReturn() }
+        panel.onDigit = { [weak self] n in self?.pickOption(n) }
+        panel.onDismiss = { [weak self] in self?.endSession() }
+        let m = panel.coachModel
+        m.onChoose = { [weak self] a in self?.session?.choose(a) }
+        m.onBack = { [weak self] in self?.session?.back() }
+        m.onChangeAnswers = { [weak self] in self?.session?.changeAnswers() }
+        m.onRewrite = { [weak self] in self?.session?.rewrite() }
+        m.onRetry = { [weak self] in self?.session?.retry() }
+        m.onLeaveResult = { [weak self] in self?.session?.leaveResult() }
+        m.onOpenSettings = { [weak self] in self?.openSettings() }
         panel.onSelectionLost = { [weak self] in self?.markSelectionLost() }
         // Ask Electron apps to expose their text boxes as soon as they come to the front.
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
@@ -31,7 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         if let front = NSWorkspace.shared.frontmostApplication { MacAccessibility.wakeUp(pid: front.processIdentifier) }
-        if !Permissions.accessibilityGranted { Permissions.promptAccessibility() }
+        _ = engine
+        if ProcessInfo.processInfo.environment["POC_SELFTEST"] == "cards" {
+            renderCards(); NSApp.terminate(nil)   // offscreen PNGs of every card step, nothing shown
+        } else if ProcessInfo.processInfo.environment["POC_SELFTEST"] == "coach" {
+            Task { await selfTest() }   // no Accessibility dialog, no hotkey use: just the coach
+        } else if !Permissions.accessibilityGranted { Permissions.promptAccessibility() }
     }
 
     // MARK: Menu bar
@@ -46,6 +76,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coach.keyEquivalentModifierMask = [.control, .option]
         coach.target = self
         menu.addItem(coach)
+        modelItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        modelItem.isEnabled = false
+        menu.addItem(modelItem)
+        let prefs = NSMenuItem(title: "Model settings…", action: #selector(openSettings), keyEquivalent: ",")
+        prefs.target = self
+        menu.addItem(prefs)
         menu.addItem(.separator())
         accessItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         accessItem.isEnabled = false
@@ -58,6 +94,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         statusItem.menu = menu
         refreshAccessItem()
+        refreshModelItem()
+    }
+
+    fileprivate func refreshModelItem() {
+        let p = CoachSettings.providers.first { $0.id == settings.provider }
+        let model = settings.model(for: settings.provider)
+        modelItem.title = "Model: \(p?.name.components(separatedBy: " (").first ?? settings.provider) · \(model.isEmpty ? "automatic" : model)"
+    }
+
+    @objc private func openSettings() {
+        // The dialog takes the keyboard, so the selection in the other app is gone: Use will copy.
+        if panel.isVisible { markSelectionLost() }
+        SettingsDialog.run(settings: settings)
+        refreshModelItem()
     }
 
     fileprivate func refreshAccessItem() {
@@ -103,16 +153,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let reader = SelectionReader(ax: ax, keys: keys, secure: secure)
         let rect = ax.selectionRect()
         selectionLost = false
-        readyState = nil
         let result = reader.read()
         Debug.log("selection: \(result) rect=\(String(describing: rect)) front=\(target.localizedName ?? "?")")
         switch result {
-        case let .text(draft, via):
-            rewrite = FakeRewrite.rewrite(draft)
-            let state = CardState.ready(draft: draft, rewrite: rewrite, app: target.localizedName ?? "this app",
-                                        via: via == .accessibility ? "read directly" : "read via copy", selectionLost: false)
-            readyState = state
-            panel.show(state, near: rect ?? ax.selectionRect(), takeKeys: true)
+        case let .text(draft, _):
+            coachApp = target.localizedName ?? "this app"
+            coachDraft = draft
+            startSession(draft: draft, anchor: rect ?? ax.selectionRect())
         case .nothingSelected:
             panel.show(.message(title: "Select your draft first",
                                 detail: "Highlight the text in \(target.localizedName ?? "the app"), then press ⌃⌥P.", action: nil),
@@ -124,19 +171,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func startSession(draft: String, anchor: CGRect?) {
+        endSession()
+        let s = CoachSession(engine: engine, config: { [settings] in settings.current() }, draft: draft, host: HostLabel.label(forApp: coachApp))
+        session = s
+        s.onChange = { [weak self] in self?.render() }
+        panel.show(.coach(CoachCardState(step: s.step, draft: draft, app: coachApp, selectionLost: false)), near: anchor, takeKeys: true)
+        s.start()
+    }
+
+    private func render() {
+        guard let s = session else { return }
+        panel.update(.coach(CoachCardState(step: s.step, draft: coachDraft, app: coachApp, selectionLost: selectionLost)))
+    }
+
+    /// The card is closed or done: stop any model call and forget the session.
+    private func endSession() {
+        session?.cancel()
+        session = nil
+    }
+
+    /// Return does the obvious next thing for the step on screen.
+    private func pressReturn() {
+        guard let s = session else { return }
+        switch s.step {
+        case .summary: s.rewrite()
+        case .result: use()
+        case let .error(f): f.needsSettings ? openSettings() : s.retry()
+        default: break
+        }
+    }
+
+    private func pickOption(_ n: Int) {
+        guard let s = session, case let .question(q, _, _, _) = s.step, n >= 1, n <= q.options.count else { return }
+        s.choose(q.options[n - 1])
+    }
+
     private func markSelectionLost() {
-        guard !selectionLost, case let .ready(d, r, a, v, _)? = readyState else { return }
+        guard !selectionLost else { return }
         selectionLost = true
-        let lost = CardState.ready(draft: d, rewrite: r, app: a, via: v, selectionLost: true)
-        readyState = lost
-        panel.update(lost)
+        render()
     }
 
     private func use() {
-        guard !busy, let target else { return }
+        guard !busy, let target, let text = session?.textToPaste else { return }
         busy = true
         defer { busy = false }
-        let text = rewrite
+        endSession()
 
         if selectionLost {
             let pb = NSPasteboard.general
@@ -166,5 +247,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: NSMenuDelegate {
-    func menuWillOpen(_ menu: NSMenu) { refreshAccessItem() }
+    func menuWillOpen(_ menu: NSMenu) { refreshAccessItem(); refreshModelItem() }
+}
+
+// MARK: Self-test (no other app involved)
+
+extension AppDelegate {
+    /// `POC_SELFTEST=coach open --env POC_SELFTEST=coach --env POC_DEBUG_DIR=/tmp/x dist/POC.app` runs one real
+    /// coaching round through this app's own bundle (resources, Info.plist network rules, signature) against the
+    /// configured model, logs it to POC_DEBUG_DIR/poc.log and quits. It never reads a selection or pastes.
+    fileprivate func selfTest() async {
+        let draft = ProcessInfo.processInfo.environment["POC_SELFTEST_DRAFT"] ?? "write a summary of the q3 report for the team, make it good and not too long"
+        let config = settings.current()
+        Debug.log("selftest: \(config) web=\(Self.webDirectory.path)")
+        let t0 = Date()
+        switch await engine.diagnose(config: config, draft: draft, host: HostLabel.label(forApp: "Claude")) {
+        case let .failure(f): Debug.log("selftest: call 1 FAILED [\(f.code)] \(f.message)")
+        case let .success(d):
+            Debug.log("selftest: call 1 ok in \(String(format: "%.1f", Date().timeIntervalSince(t0))) s, \(d.questions.count) question(s): \(d.questions.map(\.question))")
+            let t1 = Date()
+            let answers = d.questions.map { Answer(question: $0.question, answer: $0.options.first) }
+            switch await engine.rewrite(config: config, draft: draft, answers: answers, reader: d.reader, host: HostLabel.label(forApp: "Claude"), onPartial: { _ in }) {
+            case let .failure(f): Debug.log("selftest: call 2 FAILED [\(f.code)] \(f.message)")
+            case let .success(r): Debug.log("selftest: call 2 ok in \(String(format: "%.1f", Date().timeIntervalSince(t1))) s: \(r.prompt)")
+            }
+        }
+        NSApp.terminate(nil)
+    }
+}
+
+extension AppDelegate {
+    /// Renders each coaching step to POC_DEBUG_DIR as PNG, straight from the SwiftUI view (never on screen).
+    fileprivate func renderCards() {
+        let q = CoachQuestion(id: "a", quote: "make it good", question: "Is the summary for your manager or the engineers who wrote the code?",
+                              options: ["My manager", "The engineers", "Leadership, in plain words"])
+        let r = RewriteResult(prompt: "Write a one-page summary of the Q3 report for the engineers who wrote the code. Lead with what changed since Q2, then the three biggest risks, in plain words.",
+                              techniques: ["Clear deliverable", "Purpose & audience", "Format & length"], unverified: [])
+        let steps: [(String, CoachSession.Step)] = [
+            ("1-asking", .asking), ("2-question", .question(q, index: 0, total: 2, chosen: nil)),
+            ("3-summary", .summary([.init(question: q.question, answer: "The engineers"), .init(question: "How long?", answer: nil)])),
+            ("4-rewriting", .rewriting(partial: "Write a one-page summary of the Q3 report for the")), ("5-result", .result(r)),
+            ("6-error-nokey", .error(CoachFailure(code: "no-key", message: "No API key yet."))),
+            ("7-error-timeout", .error(CoachFailure(code: "timeout", message: "The model took longer than 90 seconds. Try again, or pick a faster model."))),
+        ]
+        for scheme in [NSAppearance.Name.darkAqua, .aqua] {
+            for (name, step) in steps {
+                let model = CardModel(state: .coach(CoachCardState(step: step, draft: "write a summary of the q3 report", app: "Claude", selectionLost: false)))
+                let host = NSHostingView(rootView: CardView(model: model))
+                host.appearance = NSAppearance(named: scheme)
+                host.frame = NSRect(origin: .zero, size: host.fittingSize)
+                host.layoutSubtreeIfNeeded()
+                Debug.snapshot(host, name: "\(scheme == .darkAqua ? "dark" : "light")-\(name)")
+            }
+        }
+    }
 }
