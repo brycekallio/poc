@@ -15,7 +15,7 @@ Upload `extension/poc-extension.zip` (`npm run package`). Screenshots are 1280×
 
 **Name:** P.O.C — Prompt Optimization Coach
 
-**Summary (132 characters max):** Sharpen what you write in any text box. Quick questions, then a better draft. Free with Ollama, or use your own AI key.
+**Summary (132 characters max):** Prompt Optimization Coach: sharpen your prompt on ChatGPT, Claude, Gemini and more. Free with Ollama, or use your own key.
 
 **Category:** Productivity → Tools
 
@@ -23,14 +23,13 @@ Upload `extension/poc-extension.zip` (`npm run package`). Screenshots are 1280×
 
 **Description:**
 
-P.O.C is a small coach that lives in every text box in Chrome.
+P.O.C stands for Prompt Optimization Coach. It is a small coach that lives in the chat box on AI sites like ChatGPT, Claude and Gemini.
 
-Write a draft and hover the dot beside your cursor. P.O.C asks a few quick questions about what only you know, like who it's for and what matters most, then writes a sharper version back into the box.
+Write a draft and hover the dot beside your cursor. P.O.C asks a few quick questions about what only you know, like who it's for and what matters most, then writes a sharper prompt back into the chat box.
 
-• Works everywhere you write: ChatGPT, Claude, Gemini, Gmail, GitHub comments and any multi-line text box.
-• Knows who is reading: prompts for an AI get prompt coaching, and messages for people get clearer, shorter writing.
+• Built for AI chat: ChatGPT, Claude, Gemini, Google AI Studio, Copilot, Perplexity, Grok, DeepSeek and more. It stays out of Gmail, Docs and search bars.
 • Never interrupts: nothing is sent until you click Coach this draft.
-• One switch: click the toolbar icon to turn it on or off everywhere.
+• One switch: click the toolbar icon to turn it on or off.
 
 Free or bring your own key:
 • Free and private with Ollama, which runs on your own computer. The setup guide walks you through it.
@@ -40,11 +39,11 @@ No account, no subscription, no analytics. P.O.C has no server. Your keys stay i
 
 ## Privacy practices tab
 
-**Single purpose:** Helps the user improve the text they are writing in a text box, by asking clarifying questions and rewriting the draft.
+**Single purpose:** Helps the user improve the prompt they are writing in an AI chat box, by asking clarifying questions and rewriting the draft.
 
 **Permission justifications:**
 
-- **Host permissions (all sites):** The coach appears in multi-line text boxes on whichever site the user is writing, so it cannot be limited to a fixed list. Access is also needed to reach the AI provider the user chose, including a server they run themselves.
+- **Host permissions (all sites):** Access is needed to reach the AI provider the user chose, including a server they run themselves at an address of their choosing. The coach itself appears only on a fixed list of AI chat sites (the content script matches), not on other pages.
 - **storage:** Keeps the user's chosen provider, model, API keys and on/off setting on their device.
 - **scripting:** Starts the coach in tabs that were already open when the extension was installed or updated.
 - **declarativeNetRequestWithHostAccess:** Removes the Origin header only from requests this extension makes to localhost, because Ollama rejects requests from extensions otherwise. Web pages are not affected.

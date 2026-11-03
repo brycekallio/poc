@@ -34,6 +34,8 @@
       .wm { display: inline-flex; align-items: center; font-weight: 600; font-size: 16px; line-height: 1; letter-spacing: -0.01em; }
       .wm-o { display: inline-block; width: .56em; height: .56em; margin: .1em .05em 0; border-radius: 50%; background: var(--hue); }
       header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 0; }
+      .brand { display: inline-flex; align-items: baseline; gap: 8px; }
+      .full { color: var(--muted); font-size: 12px; }
       .link { padding: 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
       .link:hover { color: var(--text); }
 
@@ -62,7 +64,7 @@
   </head>
   <body>
     <header>
-      <span class="wm" role="img" aria-label="P.O.C">p<span class="wm-o" aria-hidden="true"></span>c</span>
+      <span class="brand"><span class="wm" role="img" aria-label="P.O.C">p<span class="wm-o" aria-hidden="true"></span>c</span><span class="full">Prompt Optimization Coach</span></span>
       <button class="link" type="button" id="settings">Settings</button>
     </header>
     <main>

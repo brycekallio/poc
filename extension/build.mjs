@@ -7,13 +7,22 @@
 // dist/ rather than this folder because Chrome refuses to load an extension
 // containing files whose names start with "_", which node_modules has.
 import * as esbuild from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { CHAT_URLS } from "./src/hosts.js";
 
 const watch = process.argv.includes("--watch");
 
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist");
 cpSync("static", "dist", { recursive: true });
+
+// Where the content script runs is src/hosts.js, the one list of chat sites;
+// the manifest copy is filled in here so the two cannot disagree.
+const manifest = JSON.parse(readFileSync("static/manifest.json", "utf8"));
+manifest.content_scripts[0].matches = CHAT_URLS;
+// web_accessible_resources only takes whole origins, not paths.
+manifest.web_accessible_resources[0].matches = [...new Set(CHAT_URLS.map((u) => u.replace(/^(https:\/\/[^/]+\/).*$/, "$1*")))];
+writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2) + "\n");
 
 // Geist (SIL OFL 1.1), bundled because host pages' CSP can block font URLs.
 // The licence travels with the files.

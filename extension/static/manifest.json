@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "P.O.C \u2014 Prompt Optimization Coach",
   "version": "0.4.0",
-  "description": "Coaches what you are writing, where you are writing it: prompts for AI, and messages for people.",
+  "description": "Prompt Optimization Coach: sharpens the prompt you are writing on ChatGPT, Claude, Gemini and other AI chat sites.",
   "permissions": [
     "storage",
     "scripting",
@@ -19,7 +19,9 @@
     "default_title": "P.O.C",
     "default_icon": {
       "16": "icons/icon-16.png",
-      "32": "icons/icon-32.png"
+      "24": "icons/icon-24.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
     },
     "default_popup": "popup.html"
   },
@@ -39,8 +41,9 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*/*",
-        "http://*/*"
+        "https://claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://gemini.google.com/*"
       ],
       "js": [
         "content.js"
@@ -54,7 +57,9 @@
         "fonts/*"
       ],
       "matches": [
-        "<all_urls>"
+        "https://claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://gemini.google.com/*"
       ]
     }
   ],

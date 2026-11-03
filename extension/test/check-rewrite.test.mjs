@@ -23,15 +23,15 @@ const decided = (overrides = {}) =>
     }[t.id],
     ...(t.id === "material" ? { applied: false, evidence: "Nothing is pasted." } : {}),
     ...overrides[t.id],
-  }));
+  })).filter((t) => t.applied !== false); // the model lists only what it applied
 
 test("a good rewrite passes", () => {
   assert.deepEqual(checkRewrite({ prompt, techniques: decided() }, draft, "ai", "A: Monday's review"), []);
 });
 
-test("every technique needs a decision", () => {
-  const p = checkRewrite({ prompt, techniques: decided().filter((t) => t.id !== "success") }, draft);
-  assert.match(p.join(), /No decision for "success"/);
+test("a technique the model leaves out is its call; the always-on one is not", () => {
+  assert.deepEqual(checkRewrite({ prompt, techniques: decided().filter((t) => t.id !== "success") }, draft, "ai", "A: Monday's review"), []);
+  assert.match(checkRewrite({ prompt, techniques: decided().filter((t) => t.id !== "deliverable") }, draft).join(), /"deliverable" must always be applied/);
 });
 
 test("the deliverable is always applied", () => {
@@ -74,7 +74,7 @@ const decidedMessage = (overrides = {}) =>
     applied: t.id !== "context",
     evidence: { point: "Could you send me the Q3 deck", ask: "send me the Q3 deck by Thursday", context: "They already know the deck.", reasons: "I need it for the board meeting" }[t.id],
     ...overrides[t.id],
-  }));
+  })).filter((t) => t.applied); // the model lists only what it applied
 
 test("a good message rewrite passes", () => {
   assert.deepEqual(checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "person", dates), []);

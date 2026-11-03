@@ -80,13 +80,23 @@ input:focus-visible {
   left: 0;
   z-index: 2147483646;
   display: block;
-  height: 22px;
-  margin: -11px 0 0 0;
+  height: 19px;
+  margin: -10px 0 0 0;
   padding: 0;
   border: 0;
   background: none;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+  /* No will-change: it keeps the orb as a bitmap layer, and text in a layer
+     that sits on a fractional pixel is resampled, which is the blur. panel.js
+     also keeps the orb on whole device pixels. */
+}
+/* A touch more to land on than the 19px pill, but not the full 44px: the orb sits
+   in the text you are writing, and a 44px pad would swallow clicks meant for the
+   box. */
+.dot::before {
+  content: "";
+  position: absolute;
+  inset: -6px -8px;
 }
 .dot.still {
   transition: none;
@@ -98,8 +108,8 @@ input:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 22px;
-  padding: 0 7px;
+  height: 19px;
+  padding: 0 6px;
   box-sizing: border-box;
   border-radius: 999px;
   color: var(--text);
@@ -120,12 +130,13 @@ input:focus-visible {
   animation: orb-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .orb .wm {
-  font-size: 11px;
+  font-size: 10px;
+  -webkit-font-smoothing: antialiased;
   transition: letter-spacing 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .dot:hover .orb,
 .dot[aria-expanded="true"] .orb {
-  padding: 0 9px;
+  padding: 0 8px;
   transform: translateY(-1px);
   box-shadow:
     inset 0 0 0 0.5px var(--glass-edge),
@@ -203,6 +214,15 @@ input:focus-visible {
 }
 .name .wm {
   font-size: 15px;
+}
+/* Whole pixels for the disc, so its edge is drawn sharp rather than averaged. */
+.orb .wm-o {
+  width: 6px;
+  height: 6px;
+}
+.name .wm-o {
+  width: 8px;
+  height: 8px;
 }
 .step {
   margin-left: auto;
@@ -465,6 +485,9 @@ input:focus-visible {
   overflow-wrap: anywhere;
   user-select: text;
   line-height: 19px;
+}
+.rewrite.writing {
+  color: color-mix(in srgb, var(--text) 78%, transparent);
 }
 .rewrite:focus-visible {
   outline: 2px solid var(--hue);

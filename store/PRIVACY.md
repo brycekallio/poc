@@ -6,7 +6,7 @@ P.O.C (Prompt Optimization Coach) is a browser extension that helps you improve 
 
 ## What P.O.C reads
 
-P.O.C reads the multi-line text box you are typing in, inside your browser, so it can show its dot beside your cursor. It doesn't read other parts of the page.
+On the AI chat sites it runs on, P.O.C reads the chat box you are typing in, inside your browser, so it can show its dot beside your cursor. It doesn't read other parts of the page.
 
 ## What P.O.C sends, and where
 

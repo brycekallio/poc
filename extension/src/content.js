@@ -1,6 +1,6 @@
 import { caretRect, groundOf } from "./caret.js";
 import { loadFonts } from "./fonts.js";
-import { currentHost, findPromptBox, readPrompt } from "./hosts.js";
+import { currentHost, findPromptBox, followsFocus, readPrompt } from "./hosts.js";
 import { createCoach } from "./panel.js";
 import { createSession } from "./session.js";
 import { writeBack } from "./writeback.js";
@@ -17,8 +17,9 @@ import { writeBack } from "./writeback.js";
 // the worker, and tells panel.js what to show.
 
 const host = currentHost();
-// What call 1 is told about where the box is. On the three chat sites it is
-// certainly a prompt; anywhere else the draft decides.
+// What call 1 is told about where the box is. On a chat site it is certainly a
+// prompt (P.O.C only runs on chat sites since 2026-11-02); on the setup page the
+// draft decides.
 const where = location.protocol === "chrome-extension:"
   ? "a practice box"
   : host.generic ? location.hostname : `${host.label}, an AI chat site`;
@@ -47,18 +48,20 @@ function start() {
   // site with no known selector it follows focus: the text box you are in, or
   // the last one you were in.
   const currentBox = () => {
-    if (host.generic) {
+    if (followsFocus(host)) {
       const focused = findPromptBox(host);
       if (focused) box = focused;
       return box?.isConnected ? box : null;
     }
-    return box?.isConnected ? box : (box = findPromptBox(host));
+    // A remembered box that is hidden now (the site swapped composers) is as
+    // good as gone: writing into it would show the user nothing.
+    return box?.isConnected && box.getClientRects().length ? box : (box = findPromptBox(host));
   };
   const currentDraft = () => (currentBox() ? readPrompt(box) : "");
 
   const session = createSession({
     diagnose: (draft) => send({ type: "diagnose", draft, host: where }),
-    rewrite: (draft, answers, reader) => send({ type: "rewrite", draft, answers, reader, host: where }),
+    rewrite: (draft, answers, reader, onPartial) => streamRewrite({ draft, answers, reader, host: where }, onPartial),
     onChange: () => coach.isOpen() && show(),
   });
   // Every intent updates the session, then redraws from it.
@@ -156,7 +159,9 @@ function start() {
 
   async function use(prompt) {
     const box = currentBox();
-    if (box && writeBack(box, prompt)) {
+    const { ok, via } = box ? await writeBack(box, prompt) : { ok: false };
+    if (ok) {
+      console.debug("[POC] wrote back via", via);
       session.used();
       coach.close();
       return;
@@ -182,6 +187,31 @@ async function send(msg) {
   }
   if (!res?.ok) throw res?.error ?? { code: "unknown", message: "Something went wrong." };
   return res;
+}
+
+// The rewrite arrives in pieces over a port: { partial } while it is written,
+// then { ok: true, prompt, … } or { ok: false, error }.
+function streamRewrite(msg, onPartial) {
+  return new Promise((resolve, reject) => {
+    let port;
+    try {
+      port = chrome.runtime.connect({ name: "rewrite" });
+    } catch {
+      return reject({ code: "orphaned", message: "P.O.C was updated. Reload this page to use it." });
+    }
+    let finished = false;
+    port.onMessage.addListener((m) => {
+      if ("partial" in m) return onPartial?.(m.partial);
+      finished = true;
+      port.disconnect();
+      if (m.ok) resolve(m);
+      else reject(m.error ?? { code: "unknown", message: "Something went wrong." });
+    });
+    port.onDisconnect.addListener(() => {
+      if (!finished) reject({ code: "orphaned", message: "The connection to P.O.C dropped. Try again, or reload this page." });
+    });
+    port.postMessage(msg);
+  });
 }
 
 // When the caret cannot be measured, sit at the box's right edge, top line.

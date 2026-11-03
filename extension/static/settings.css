@@ -94,7 +94,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; letter-spa
 .caret { display: inline-block; width: 1.5px; height: 18px; margin: 0 0 -3px 1px; background: var(--text); animation: blink 1.1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .orb {
-  display: inline-flex; align-items: center; height: 22px; margin-left: 8px; padding: 0 9px; vertical-align: -4px;
+  display: inline-flex; align-items: center; height: 19px; margin-left: 8px; padding: 0 8px; vertical-align: -3px;
   border-radius: 999px; color: var(--text);
   /* taste-skill-ignore-start: the orb's glass, Bryce's call (BUILD.md, 2026-10-28) */
   background: var(--glass);
@@ -102,7 +102,8 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; letter-spa
   box-shadow: inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--glass-shine), 0 4px 14px rgb(0 0 0 / .12), 0 1px 2px rgb(0 0 0 / .08);
   /* taste-skill-ignore-end */
 }
-.orb .wm { font-size: 11px; letter-spacing: .06em; }
+.orb .wm { font-size: 10px; letter-spacing: .06em; -webkit-font-smoothing: antialiased; }
+.orb .wm-o { width: 6px; height: 6px; }
 .composer .send { position: absolute; right: 12px; bottom: 10px; color: var(--muted); font-size: 12px; }
 /* No key: P.O.C is off, and the preview says so instead of pretending. */
 .preview[data-ready="false"] .popup { opacity: .35; transform: translateY(4px); }

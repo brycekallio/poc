@@ -1,4 +1,5 @@
 import { checkConnection, describeError, diagnose, listModels, ready, rewrite } from "./coach.js";
+import { CHAT_URLS } from "./hosts.js";
 import { loadConfig, migrate } from "./settings.js";
 
 // The only place a coaching request reads an API key. Content scripts share a
@@ -63,7 +64,7 @@ async function allowLocalServers() {
 // tabs that were already open would show no dot until reloaded. Start P.O.C in
 // them now. Pages Chrome forbids (the Web Store, chrome://) just fail.
 async function injectIntoOpenTabs() {
-  const tabs = await chrome.tabs.query({ url: ["https://*/*", "http://*/*"] });
+  const tabs = await chrome.tabs.query({ url: CHAT_URLS });
   await Promise.all(
     tabs.map((t) => chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["content.js"] }).catch(() => {})),
   );
@@ -100,6 +101,25 @@ const handlers = {
     return {};
   },
 };
+
+// The rewrite streams, so it comes over a port (one message per piece) instead
+// of one reply. Same rule as above: only the content script's draft goes in, and
+// only text comes out.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "rewrite") return;
+  port.onMessage.addListener(async ({ draft, answers, host, reader }) => {
+    const say = (msg) => { try { port.postMessage(msg); } catch { /* the tab went away */ } };
+    try {
+      const { prompt, techniques, unverified } = await rewrite({
+        config: await settings(), draft, answers, host, reader,
+        onPartial: (text) => say({ partial: text }),
+      });
+      say({ ok: true, prompt, techniques, unverified });
+    } catch (err) {
+      say({ ok: false, error: describeError(err) });
+    }
+  });
+});
 
 // These carry a key, so only accept them from our own extension pages. A
 // content script's sender.url is the host page, not chrome-extension://.
