@@ -466,6 +466,9 @@ input:focus-visible {
   user-select: text;
   line-height: 19px;
 }
+.rewrite.writing {
+  color: color-mix(in srgb, var(--text) 78%, transparent);
+}
 .rewrite:focus-visible {
   outline: 2px solid var(--hue);
 }

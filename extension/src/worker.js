@@ -101,6 +101,25 @@ const handlers = {
   },
 };
 
+// The rewrite streams, so it comes over a port (one message per piece) instead
+// of one reply. Same rule as above: only the content script's draft goes in, and
+// only text comes out.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "rewrite") return;
+  port.onMessage.addListener(async ({ draft, answers, host, reader }) => {
+    const say = (msg) => { try { port.postMessage(msg); } catch { /* the tab went away */ } };
+    try {
+      const { prompt, techniques, unverified } = await rewrite({
+        config: await settings(), draft, answers, host, reader,
+        onPartial: (text) => say({ partial: text }),
+      });
+      say({ ok: true, prompt, techniques, unverified });
+    } catch (err) {
+      say({ ok: false, error: describeError(err) });
+    }
+  });
+});
+
 // These carry a key, so only accept them from our own extension pages. A
 // content script's sender.url is the host page, not chrome-extension://.
 const PAGES_ONLY = ["listModels", "checkConnection"];

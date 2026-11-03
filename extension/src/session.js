@@ -16,7 +16,8 @@
  *
  * @param {{
  *   diagnose: (draft: string) => Promise<{ questions: Question[], reader?: "ai"|"person" }>,
- *   rewrite: (draft: string, answers: Array<{ question: string, answer: string|null }>, reader?: "ai"|"person") => Promise<Rewrite>,
+ *   rewrite: (draft: string, answers: Array<{ question: string, answer: string|null }>, reader?: "ai"|"person", onPartial?: (text: string) => void) => Promise<Rewrite>,
+ *     onPartial receives the rewrite so far while it streams in, if the provider streams.
  *   onChange?: () => void,   // called after every async step lands
  * }} calls Each call throws a CoachFailure (or anything) when it fails.
  */
@@ -29,9 +30,15 @@ export function createSession({ diagnose, rewrite, onChange = () => {} }) {
 
   async function attempt(call, pending, landed, failed) {
     const thisRun = ++run;
-    s = { ...s, step: pending, error: null };
+    s = { ...s, step: pending, error: null, partial: "" };
+    // The rewrite so far, for the popup to show while the rest is written.
+    const progress = (partial) => {
+      if (run !== thisRun) return;
+      s = { ...s, partial };
+      onChange();
+    };
     try {
-      const out = await call();
+      const out = await call(progress);
       if (run === thisRun) s = { ...s, ...landed(out) };
     } catch (err) {
       if (run === thisRun) s = { ...s, step: "error", failed, error: asFailure(err) };
@@ -47,7 +54,7 @@ export function createSession({ diagnose, rewrite, onChange = () => {} }) {
       if (s?.draft !== draft) return { kind: "idle", words: draft.split(/\s+/).length };
       switch (s.step) {
         case "asking": return { kind: "loading" };
-        case "rewriting": return { kind: "rewriting" };
+        case "rewriting": return { kind: "rewriting", partial: s.partial };
         case "error": return { kind: "error", error: s.error };
         case "result": return { kind: "result", result: s.result };
       }
@@ -84,7 +91,7 @@ export function createSession({ diagnose, rewrite, onChange = () => {} }) {
     rewrite() {
       if (!s?.questions) return;
       const answers = s.questions.map((q) => ({ question: q.question, answer: s.answers[q.id] ?? null }));
-      return attempt(() => rewrite(s.draft, answers, s.reader), "rewriting",
+      return attempt((progress) => rewrite(s.draft, answers, s.reader, progress), "rewriting",
         (result) => ({ step: "result", result }), "rewrite");
     },
 

@@ -173,11 +173,15 @@ export function createCoach({
       );
     },
 
-    rewriting() {
+    // Until the first words arrive, bars. Then the rewrite itself, as it is written.
+    rewriting({ partial = "" }) {
+      const live = partial ? h("div", { class: "rewrite writing", "aria-label": "Rewrite so far" }, partial) : null;
       show(
-        h("div", { class: "q", "aria-hidden": "true" }, ...[92, 100, 84, 96, 60].map((w) => h("span", { class: "sk sk-line", style: `width:${w}%` }))),
+        live ??
+          h("div", { class: "q", "aria-hidden": "true" }, ...[92, 100, 84, 96, 60].map((w) => h("span", { class: "sk sk-line", style: `width:${w}%` }))),
         h("p", { class: "status", role: "status" }, "Rewriting with your answers…"),
       );
+      if (live) live.scrollTop = live.scrollHeight; // follow the newest words
     },
 
     /** One question at a time. Choosing moves on after a beat, so the choice is seen to land. */

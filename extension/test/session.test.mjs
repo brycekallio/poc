@@ -16,7 +16,7 @@ const rewritten = { prompt: "Summarize our Q3 report for leadership in one page.
 function fixture({ diagnose = [{ questions, reader: "person" }], rewrite = [rewritten] } = {}) {
   const calls = { diagnose: [], rewrite: [] };
   const next = (list, name) => async (...args) => {
-    calls[name].push(args);
+    calls[name].push(args.filter((a) => typeof a !== "function"));
     const out = list[Math.min(calls[name].length - 1, list.length - 1)];
     if (out instanceof Error || out?.code) throw out;
     return out;
@@ -52,7 +52,7 @@ test("ask → one question at a time → summary → rewrite → result", async 
   assert.deepEqual(calls.rewrite[0], [draft, [
     { question: "Who is it for?", answer: "Leadership" },
     { question: "How long?", answer: null },
-  ], "person"]); // the reader call 1 decided goes to call 2
+  ], "person"]); // the reader call 1 decided goes to call 2 (the callback after it is for streaming)
   assert.deepEqual(session.view(draft), { kind: "result", result: rewritten });
 });
 
@@ -139,4 +139,26 @@ test("used() spends the session", async () => {
   await session.ask(draft);
   session.used();
   assert.equal(session.view(draft).kind, "idle");
+});
+
+test("the rewrite so far is shown while it streams, and a stale stream is ignored", async () => {
+  let release;
+  let progress;
+  const changes = [];
+  const session = createSession({
+    diagnose: async () => ({ questions: [], reader: "ai" }),
+    rewrite: (d, a, r, p) => ((progress = p), new Promise((res) => (release = res))),
+    onChange: () => changes.push(session.view(draft)),
+  });
+  await session.ask(draft);
+  const pending = session.rewrite();
+  assert.deepEqual(session.view(draft), { kind: "rewriting", partial: "" });
+  progress("Summarize our Q3");
+  assert.deepEqual(session.view(draft), { kind: "rewriting", partial: "Summarize our Q3" });
+  assert.equal(changes.at(-1).partial, "Summarize our Q3"); // the popup is told to redraw
+  release(rewritten);
+  await pending;
+  assert.equal(session.view(draft).kind, "result");
+  progress("late words from a finished stream");
+  assert.equal(session.view(draft).kind, "result");
 });

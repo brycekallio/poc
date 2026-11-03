@@ -8,7 +8,8 @@
     "try": "node scripts/try-diagnose.mjs",
     "demo": "node dev/build-demo.mjs",
     "test": "node --test test/*.test.mjs",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "time": "node scripts/time-calls.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",

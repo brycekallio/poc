@@ -60,7 +60,7 @@ function start() {
 
   const session = createSession({
     diagnose: (draft) => send({ type: "diagnose", draft, host: where }),
-    rewrite: (draft, answers, reader) => send({ type: "rewrite", draft, answers, reader, host: where }),
+    rewrite: (draft, answers, reader, onPartial) => streamRewrite({ draft, answers, reader, host: where }, onPartial),
     onChange: () => coach.isOpen() && show(),
   });
   // Every intent updates the session, then redraws from it.
@@ -186,6 +186,31 @@ async function send(msg) {
   }
   if (!res?.ok) throw res?.error ?? { code: "unknown", message: "Something went wrong." };
   return res;
+}
+
+// The rewrite arrives in pieces over a port: { partial } while it is written,
+// then { ok: true, prompt, … } or { ok: false, error }.
+function streamRewrite(msg, onPartial) {
+  return new Promise((resolve, reject) => {
+    let port;
+    try {
+      port = chrome.runtime.connect({ name: "rewrite" });
+    } catch {
+      return reject({ code: "orphaned", message: "P.O.C was updated. Reload this page to use it." });
+    }
+    let finished = false;
+    port.onMessage.addListener((m) => {
+      if ("partial" in m) return onPartial?.(m.partial);
+      finished = true;
+      port.disconnect();
+      if (m.ok) resolve(m);
+      else reject(m.error ?? { code: "unknown", message: "Something went wrong." });
+    });
+    port.onDisconnect.addListener(() => {
+      if (!finished) reject({ code: "orphaned", message: "The connection to P.O.C dropped. Try again, or reload this page." });
+    });
+    port.postMessage(msg);
+  });
 }
 
 // When the caret cannot be measured, sit at the box's right edge, top line.

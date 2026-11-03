@@ -67,15 +67,18 @@ const nameOf = (config) => PROVIDERS[config.provider]?.name ?? "the model";
 
 // ── Anthropic ─────────────────────────────────────────────────────────
 
+// Not streamed: `onText` is ignored here. Streaming only helps a slow server,
+// and a hosted Claude at low effort answers in a few seconds.
 async function anthropicComplete({ apiKey, model }, { system, messages, schema }) {
   const res = await anthropicClient(apiKey).beta.messages.parse({
     model,
     max_tokens: 16000,
     system,
     messages,
-    // Medium effort: the popup is open in the middle of someone's typing, and
-    // waiting is part of the experience.
-    output_config: { effort: "medium", format: betaZodOutputFormat(schema) },
+    // Low effort: the popup is open in the middle of someone's typing, and
+    // waiting is part of the experience. Thinking is most of a hosted call's
+    // time; these are short structured answers that do not need much of it.
+    output_config: { effort: "low", format: betaZodOutputFormat(schema) },
     // If the safety classifier declines, retry on Anthropic's recommended
     // fallback model. A coach sees whatever topic the user is working on.
     ...(hasFallback(model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
@@ -101,29 +104,70 @@ const hasFallback = (model) => MODELS.find((m) => m.id === model)?.fallback !== 
 
 // ── OpenAI-style servers ──────────────────────────────────────────────
 
-async function compatComplete(config, { system, messages, schema }) {
+async function compatComplete(config, { system, messages, schema, onText }) {
   const shape = z.toJSONSchema(schema);
-  const chat = [{ role: "system", content: system }, ...messages];
+  // Streamed when someone is watching (`onText`): the server answers in pieces
+  // and we pass the text so far along, so a slow local model shows its work.
+  const stream = onText ? { stream: true, stream_options: { include_usage: true } } : {};
   let res = await call(config, "/chat/completions", {
     model: config.model,
-    messages: chat,
+    messages: [{ role: "system", content: system }, ...messages],
     response_format: { type: "json_schema", json_schema: { name: "reply", strict: true, schema: shape } },
+    ...stream,
   });
   // Not every server takes a schema. Ask in words and let the parse below judge.
   if (res.status === 400) {
     res = await call(config, "/chat/completions", {
       model: config.model,
       messages: [{ role: "system", content: `${system}\n\nReply with only a JSON object matching this JSON Schema, and nothing else:\n${JSON.stringify(shape)}` }, ...messages],
+      ...stream,
     });
   }
   if (!res.ok) throw await httpError(res, config);
 
-  const choice = (await res.json()).choices?.[0];
+  const choice = onText ? await readStream(res, onText) : (await res.json()).choices?.[0];
   if (choice?.message?.refusal) throw new CoachError("refused");
   if (choice?.finish_reason === "length") throw new CoachError("truncated");
   const parsed = schema.safeParse(jsonIn(choice?.message?.content));
   if (!parsed.success) throw new CoachError("unparseable");
   return parsed.data;
+}
+
+// Server-sent events: "data: {json}" lines, ending with "data: [DONE]". Returns
+// the same shape a non-streamed reply's first choice has.
+const THROTTLE_MS = 50; // so a fast server does not repaint the popup hundreds of times a second
+async function readStream(res, onText) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let content = "";
+  let finish = null;
+  let refusal = null;
+  let last = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    pending += decoder.decode(value, { stream: true });
+    const lines = pending.split("\n");
+    pending = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") continue;
+      let chunk;
+      try { chunk = JSON.parse(data); } catch { continue; }
+      const choice = chunk.choices?.[0];
+      content += choice?.delta?.content ?? "";
+      refusal ??= choice?.delta?.refusal ?? null;
+      finish = choice?.finish_reason ?? finish;
+    }
+    if (Date.now() - last >= THROTTLE_MS) {
+      last = Date.now();
+      onText(content);
+    }
+  }
+  onText(content);
+  return { message: { content, refusal }, finish_reason: finish };
 }
 
 function call(config, path, body) {
