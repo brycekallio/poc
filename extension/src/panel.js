@@ -110,9 +110,9 @@ export function createCoach({
     // page-sized editor, and the popup clears just the caret's line.
     const span = avoid && avoid.height < innerHeight / 2 ? avoid : { top: anchor.y - 10, bottom: anchor.y + 10 };
     const above = span.top > 280;
-    popup.style.left = `${left}px`;
-    popup.style.top = above ? "" : `${span.bottom + 10}px`;
-    popup.style.bottom = above ? `${innerHeight - span.top + 10}px` : "";
+    popup.style.left = `${snap(left)}px`;
+    popup.style.top = above ? "" : `${snap(span.bottom + 10)}px`;
+    popup.style.bottom = above ? `${snap(innerHeight - span.top + 10)}px` : "";
     popup.dataset.side = above ? "above" : "below";
     // Never taller than the room on its side; the body scrolls instead.
     popup.style.maxHeight = `${(above ? span.top : innerHeight - span.bottom) - 10 - margin}px`;
@@ -294,8 +294,8 @@ export function createCoach({
       // Beside the caret at the end of a line; lifted just above the line when
       // text follows, so it never sits on the next word.
       anchor = rect.midLine
-        ? { x: rect.left - 11, y: rect.top - 9 }
-        : { x: rect.left + 10, y: rect.top + rect.height / 2 };
+        ? { x: snap(rect.left - 11), y: snap(rect.top - 9) }
+        : { x: snap(rect.left + 10), y: snap(rect.top + rect.height / 2) };
       avoid = boxRect;
       const to = `translate(${anchor.x}px, ${anchor.y}px)`;
       if (dot.hidden) {
@@ -394,6 +394,11 @@ function questionView(q, current, { choose, back }) {
     ),
   );
 }
+
+// Text drawn at a fractional pixel is resampled and looks soft. Everything that
+// positions the orb or the popup is rounded to a whole *device* pixel (two per
+// CSS pixel on a Retina screen).
+const snap = (v) => Math.round(v * devicePixelRatio) / devicePixelRatio;
 
 // Clicking popup buttons must not pull focus out of the host's prompt box: the
 // user is mid-prompt, and some editors react badly to losing focus.
