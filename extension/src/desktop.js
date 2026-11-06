@@ -30,10 +30,10 @@ const isNative = (url) => {
 };
 
 /** fetch() through Swift: the whole reply arrives at once, so a streamed rewrite shows up in one piece. */
-let nativeSeq = 0;
 async function nativeFetch(url, init, signal) {
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  const id = `n${++nativeSeq}`;
+  // Random, so a late cancel from before a page reload can't hit a newer request (randomUUID needs a secure context).
+  const id = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join("");
   let onAbort;
   const aborted = new Promise((_, reject) => {
     onAbort = () => {

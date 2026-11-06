@@ -188,7 +188,7 @@ public final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
 
     /// Stops the request with this id, if it is still running (the page aborted or timed out).
     func cancel(_ id: String) {
-        lock.lock(); let task = inFlight[id]; if task == nil { cancelledEarly.insert(id) }; lock.unlock()
+        lock.lock(); let task = inFlight[id]; if task == nil, cancelledEarly.count < 64 { cancelledEarly.insert(id) }; lock.unlock()
         task?.cancel()
     }
 
