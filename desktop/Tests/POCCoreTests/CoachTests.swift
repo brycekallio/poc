@@ -285,3 +285,51 @@ final class HostLabelTests: XCTestCase {
         XCTAssertEqual(HostLabel.label(forApp: "Notes"), "Notes")
     }
 }
+
+final class SettingsFormTests: XCTestCase {
+    private func settings() -> CoachSettings {
+        CoachSettings(defaults: UserDefaults(suiteName: "poc.form.\(UUID().uuidString)")!, secrets: InMemorySecretStore())
+    }
+    func testOllamaNeedsNothing() { XCTAssertTrue(SettingsForm(provider: "ollama").isValid) }
+    func testHostedNeedsKeyUnlessSaved() {
+        XCTAssertEqual(SettingsForm(provider: "anthropic").problems, [.needsKey])
+        XCTAssertEqual(SettingsForm(provider: "anthropic", typedKey: "   ").problems, [.needsKey])
+        XCTAssertTrue(SettingsForm(provider: "anthropic", typedKey: "sk-x").isValid)
+        XCTAssertTrue(SettingsForm(provider: "anthropic", hasSavedKey: true).isValid)
+    }
+    func testCustomNeedsHttpAddress() {
+        XCTAssertEqual(SettingsForm(provider: "custom").problems, [.needsAddress])
+        XCTAssertEqual(SettingsForm(provider: "custom", baseUrl: "localhost:1234").problems, [.badAddress])
+        XCTAssertEqual(SettingsForm(provider: "custom", baseUrl: "ftp://x").problems, [.badAddress])
+        XCTAssertTrue(SettingsForm(provider: "custom", baseUrl: " http://localhost:1234/v1 ").isValid)
+    }
+    func testConfigUsesTypedKeyElseSaved() {
+        XCTAssertEqual(SettingsForm(provider: "openai", typedKey: " new ").config(savedKey: "old").apiKey, "new")
+        XCTAssertEqual(SettingsForm(provider: "openai").config(savedKey: "old").apiKey, "old")
+        XCTAssertEqual(SettingsForm(provider: "ollama", typedKey: "stray").config(savedKey: "old").apiKey, "")
+        XCTAssertEqual(SettingsForm(provider: "ollama", baseUrl: "http://x").config(savedKey: "").baseUrl, "")
+    }
+    func testSaveRoundTripAndBlankKeyKeepsSaved() throws {
+        let s = settings()
+        try SettingsForm(provider: "openai", model: " gpt-x ", typedKey: "k1").save(to: s)
+        XCTAssertEqual(s.provider, "openai"); XCTAssertEqual(s.model(for: "openai"), "gpt-x"); XCTAssertEqual(s.key(for: "openai"), "k1")
+        let again = SettingsForm.load(from: s)
+        XCTAssertTrue(again.hasSavedKey); XCTAssertEqual(again.typedKey, "")
+        try again.save(to: s)
+        XCTAssertEqual(s.key(for: "openai"), "k1")
+    }
+    func testInvalidFormSavesNothing() throws {
+        let s = settings()
+        try SettingsForm(provider: "anthropic").save(to: s)
+        XCTAssertEqual(s.provider, CoachSettings.defaultProvider)
+    }
+    func testTestSummaryNeverEchoesKey() {
+        XCTAssertEqual(SettingsForm.testSummary(.failure(CoachFailure(code: "bad-key", message: "That key was rejected."))), "That key was rejected.")
+        XCTAssertTrue(SettingsForm.testSummary(.success(1)).hasPrefix("Connected"))
+    }
+    func testHomeWindowRules() {
+        XCTAssertTrue(HomeStatus.shouldShowWindow(selfTest: nil))
+        XCTAssertFalse(HomeStatus.shouldShowWindow(selfTest: "cards"))
+        XCTAssertTrue(HomeStatus.accessibilityLine(granted: true).contains("on"))
+    }
+}
