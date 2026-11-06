@@ -40,7 +40,7 @@ export function mark(variant) {
 }
 
 // 16, 24, 32 and 48 are the toolbar at 1x, 1.5x, 2x and 3x; 48 and 128 are the extensions page and the store.
-const SIZES = [16, 24, 32, 48, 64, 96, 128];
+const SIZES = [16, 24, 32, 48, 128];
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const dir = new URL("../static/icons/", import.meta.url).pathname;

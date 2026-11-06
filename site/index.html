@@ -1,36 +1,168 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <link rel="icon" type="image/svg+xml" href="icon.svg" />
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>POC — Prompt Optimization Coach</title>
-    <style>
-      :root { color-scheme: dark; }
-      body {
-        margin: 0; min-height: 100vh; display: grid; place-items: center;
-        background: #0a0c10; color: #e6e8ee; padding: 24px;
-        font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, sans-serif;
-      }
-      main { max-width: 34rem; }
-      h1 { font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 .5rem; }
-      p { color: #9aa3b2; }
-      kbd {
-        background: #181c26; border: 1px solid #262b38; border-radius: 5px;
-        padding: 2px 6px; font: 13px ui-monospace, monospace;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Prompt Optimization Coach</h1>
-      <p>
-        P.O.C stands for Prompt Optimization Coach. On ChatGPT, Claude, Gemini and other
-        AI chat sites, hover the dot beside your cursor, answer a few quick questions,
-        and P.O.C writes a sharper prompt back into the chat box. Free with Ollama, or
-        use your own AI key.
-      </p>
-      <p><a href="https://github.com/brycekallio/poc">Get it on GitHub</a></p>
-    </main>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POC, the Prompt Optimization Coach | A Chrome extension for better prompts</title>
+  <meta name="description" content="POC stands for Prompt Optimization Coach. A free, open-source Chrome extension that asks up to three quick questions about your draft on ChatGPT, Claude, Gemini and other AI chat sites, then writes a sharper prompt back into the box." />
+  <meta name="theme-color" content="#fafafa" />
+  <meta property="og:title" content="POC, the Prompt Optimization Coach" />
+  <meta property="og:description" content="Answer up to three quick questions. Get a sharper prompt written back into your AI chat box. Free with Ollama, or bring your own key." />
+  <meta property="og:image" content="media/demo-poster.jpg" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="preload" href="fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="style.css" />
+  <script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+  <header class="wrap nav">
+    <a class="wordmark" href="#top" aria-label="POC, Prompt Optimization Coach">
+      <svg viewBox="8 40 114 62" role="img" aria-hidden="true"><circle cx="28" cy="62" r="11.5" fill="none" stroke="currentColor" stroke-width="9"/><rect x="12" y="44" width="9" height="54" fill="currentColor"/><circle cx="64" cy="62" r="15" fill="#4b8ef0"/><path d="M 107.39 53.19 A 11.5 11.5 0 1 0 107.39 70.81" fill="none" stroke="currentColor" stroke-width="9"/></svg>
+    </a>
+    <nav aria-label="Primary"><ul>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#providers">Providers</a></li>
+      <li><a href="#privacy">Privacy</a></li>
+      <li><a href="#install">Install</a></li>
+    </ul></nav>
+    <a class="btn small" href="https://github.com/brycekallio/poc">GitHub</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <h1 class="rise">Sharper prompts, in your chat box.</h1>
+          <p class="lede rise" style="--i:1">POC stands for Prompt Optimization Coach. It asks up to three quick questions about your draft, then writes a clearer prompt back into the box.</p>
+          <div class="actions rise" style="--i:2">
+            <a class="btn" href="#install">Install for Chrome</a>
+            <a class="link" href="https://github.com/brycekallio/poc">View the source</a>
+          </div>
+          <p class="hero-note rise" style="--i:3">Free and open source (MIT). Version 0.4.0, a beta you load by hand.</p>
+        </div>
+        <figure class="rise" style="--i:2; margin:0">
+          <div class="demo">
+            <video id="demo" controls muted loop playsinline preload="metadata" poster="media/demo-poster.jpg" aria-label="30 second demo: POC turns a vague draft into a clear prompt">
+              <source src="media/demo.mp4" type="video/mp4" />
+            </video>
+          </div>
+          <figcaption class="demo-cap">The 30 second demo. A vague draft in, three questions, a clear prompt out.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="field" id="sites">
+      <div class="wrap split">
+        <h2 class="rise">Runs on 16 AI chat sites.</h2>
+        <div class="rise" style="--i:1">
+          <ul class="sites-list">
+            <li>ChatGPT</li><li>Claude</li><li>Gemini</li><li>Google AI Studio</li><li>Microsoft Copilot</li><li>Perplexity</li><li>Grok</li><li>DeepSeek</li><li>Le Chat</li><li>Poe</li><li>Meta AI</li><li>Kimi</li><li>Qwen</li><li>T3 Chat</li><li>HuggingChat</li><li>OpenRouter Chat</li>
+          </ul>
+          <p class="sites-note">It stays out of Gmail, Google Docs and search bars. Also runs in Edge, Brave and Arc.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="dark" id="how">
+      <div class="wrap">
+        <h2 class="rise">You ask for it. It asks you back.</h2>
+        <ol class="steps">
+          <li class="step rise">
+            <div class="pic"><img src="media/step-draft.jpg" width="604" height="112" alt="A rough draft in a chat box with the small POC dot beside the cursor" loading="lazy" /></div>
+            <h3>Write your draft</h3>
+            <p>Hover the <b>blue dot</b> that follows your cursor, or press <b>Cmd+Shift+P</b>. POC never speaks unless you ask, and nothing reaches the AI until you click <b>Coach this draft</b>.</p>
+          </li>
+          <li class="step rise" style="--i:1">
+            <div class="pic"><img src="media/step-question.jpg" width="340" height="285" alt="POC card asking one multiple-choice question about the draft" loading="lazy" /></div>
+            <h3>Answer a few questions</h3>
+            <p>Up to three, one at a time, all multiple choice. They ask only about what you know and the draft does not say, such as who it is for and what matters most.</p>
+          </li>
+          <li class="step rise" style="--i:2">
+            <div class="pic"><img src="media/step-result.jpg" width="340" height="350" alt="POC card showing the rewritten prompt with a Use this button" loading="lazy" /></div>
+            <h3>Use the rewrite</h3>
+            <p>Click <b>Use this</b> and the sharper prompt is written back into the chat box. Copy it instead if you prefer. Then send it yourself.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="providers">
+      <div class="wrap split">
+        <div class="rise">
+          <h2>Free and local, or bring a key.</h2>
+          <p class="prov-note" style="margin-top:28px">POC has no account and no subscription. You pay a provider directly, per use, or nobody at all.</p>
+        </div>
+        <div class="rise" style="--i:1">
+          <ul class="prov">
+            <li><h3>Ollama</h3><p>The default. Runs models on your own machine, so your text never leaves it.</p><span class="cost">Free</span></li>
+            <li><h3>Google Gemini</h3><p>Strong results. Your text goes to Google.</p><span class="cost">Free tier</span></li>
+            <li><h3>Anthropic</h3><p>Claude models with your own API key. Your text goes to Anthropic.</p><span class="cost">Pay per use</span></li>
+            <li><h3>OpenAI</h3><p>GPT models with your own API key. Your text goes to OpenAI.</p><span class="cost">Pay per use</span></li>
+            <li><h3>Anything else</h3><p>LM Studio, OpenRouter, Groq, or any OpenAI-compatible server.</p><span class="cost">Varies</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="field" id="privacy">
+      <div class="wrap privacy-grid">
+        <div class="rise">
+          <h2>Your key stays on your computer.</h2>
+          <p class="privacy-state">POC has no server of its own. Your draft goes only to the provider you chose.</p>
+        </div>
+        <ul class="facts rise" style="--i:1">
+          <li><h3>The key never leaves the browser</h3><p>Your API key is saved in your browser's local extension storage. There is no POC backend to send it to.</p></li>
+          <li><h3>Nothing is sent until you click</h3><p>POC does not read or upload what you type in the background. The draft is sent only when you click Coach this draft.</p></li>
+          <li><h3>Fully local if you want it</h3><p>With Ollama, the whole round trip happens on your machine. With a cloud provider, your draft is sent to that provider under its own terms.</p></li>
+          <li><h3>Open source, MIT</h3><p>Read every line on <a class="link" href="https://github.com/brycekallio/poc">GitHub</a>.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="dark" id="install">
+      <div class="wrap split">
+        <div class="rise">
+          <h2>Install it in about a minute.</h2>
+          <p class="lede soft" style="margin-top:28px">POC is not on the Chrome Web Store yet, so you load it by hand. That is a few clicks in Chrome.</p>
+          <div class="install-cta"><a class="btn" href="https://github.com/brycekallio/poc/releases/latest/download/poc-extension.zip">Download poc-extension.zip</a></div>
+        </div>
+        <ol class="install-list rise" style="--i:1">
+          <li><b>Download and unzip</b><span>Keep the folder somewhere permanent. Chrome loads it from there every time.</span></li>
+          <li><b>Open chrome://extensions</b><span>Type it into the address bar.</span></li>
+          <li><b>Turn on Developer mode</b><span>The switch is at the top right.</span></li>
+          <li><b>Click Load unpacked</b><span>Choose the unzipped folder, the one with <code>manifest.json</code> directly inside.</span></li>
+          <li><b>Follow the setup page</b><span>It opens by itself and helps you pick Ollama or a key.</span></li>
+        </ol>
+      </div>
+      <div class="wrap">
+        <div class="mac rise">
+          <h3>A Mac app is in beta.</h3>
+          <p>The same coaching in any app: select text, press Control+Option+P. It is not released yet, so for now the Chrome extension is the way in.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot wrap">
+    <div class="foot-links">
+      <a class="link" href="https://github.com/brycekallio/poc">GitHub</a>
+      <a class="link" href="https://github.com/brycekallio/poc/releases">Releases</a>
+      <a class="link" href="https://github.com/brycekallio/poc/issues">Report a problem</a>
+      <a class="link" href="https://github.com/brycekallio/poc/blob/main/store/PRIVACY.md">Privacy policy</a>
+    </div>
+    <p class="foot-big">P<span>.</span>O<span>.</span>C, the Prompt Optimization Coach.</p>
+    <p class="foot-small"><span>Open source under the MIT license.</span><span>Version 0.4.0, beta.</span></p>
+  </footer>
+
+  <script>
+    (function () {
+      var v = document.getElementById("demo");
+      if (v && !matchMedia("(prefers-reduced-motion: reduce)").matches) { v.autoplay = true; v.play().catch(function () {}); }
+      var els = document.querySelectorAll(".rise");
+      if (!("IntersectionObserver" in window)) { els.forEach(function (e) { e.classList.add("in"); }); return; }
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { threshold: .12 });
+      els.forEach(function (e) { io.observe(e); });
+    })();
+  </script>
+</body>
 </html>
