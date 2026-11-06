@@ -122,7 +122,7 @@ for (const seed of seeds) {
       const checks = hardChecks({ draft: p.draft, keep: p.keep, answers, out });
       const j = await judge({ draft: p.draft, answers, rewrite: out.prompt, reader: d.reader });
       const hardOk = Object.values(checks).every(Boolean);
-      row = { id: p.id, seed, reader: d.reader, nq: answers.length, c1, c2, checks, judge: j, hardOk, pass: hardOk && j.score >= 4 && !j.invented, rewrite: out.prompt };
+      row = { id: p.id, seed, reader: d.reader, nq: answers.length, c1, c2, checks, judge: j, hardOk, unverified: out.unverified, pass: hardOk && j.score >= 4 && !j.invented, rewrite: out.prompt };
     } catch (e) {
       row = { id: p.id, seed, error: String(e.message ?? e), c1: 0, c2: 0, judge: { score: 1 }, hardOk: false, pass: false, checks: {}, rewrite: "" };
     }
