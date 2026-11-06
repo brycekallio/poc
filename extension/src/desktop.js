@@ -30,12 +30,17 @@ const isNative = (url) => {
 };
 
 /** fetch() through Swift: the whole reply arrives at once, so a streamed rewrite shows up in one piece. */
+let nativeSeq = 0;
 async function nativeFetch(url, init, signal) {
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  const id = `n${++nativeSeq}`;
   const aborted = new Promise((_, reject) =>
-    signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true }));
+    signal?.addEventListener("abort", () => {
+      bridge().postMessage({ cancel: id }); // stop the request in Swift too, not just the waiting here
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true }));
   const reply = await Promise.race([
-    bridge().postMessage({ url: String(url), method: init.method ?? "GET", headers: init.headers ?? {}, body: init.body ?? null }),
+    bridge().postMessage({ id, url: String(url), method: init.method ?? "GET", headers: init.headers ?? {}, body: init.body ?? null }),
     aborted,
   ]);
   if (!reply || reply.error) throw new TypeError("network"); // what fetch itself throws when it cannot connect

@@ -178,3 +178,15 @@ test("OpenAI goes through the native bridge (its replies carry no CORS headers);
     assert.equal(calls.length, 1);
   } finally { delete globalThis.webkit; }
 });
+
+test("aborting a native OpenAI call tells Swift to cancel that request", async () => {
+  const sent = [];
+  globalThis.webkit = { messageHandlers: { net: { postMessage: (m) => { sent.push(m); return new Promise(() => {}); } } } }; // never answers
+  try {
+    const run = diagnoseDraft({ config: { provider: "openai", apiKey: "sk-x", model: "m" }, draft, host: "Claude, an AI chat app", timeoutMs: 50 });
+    const out = await run;
+    assert.equal(out.error.code, "timeout");
+    assert.equal(sent.length, 2);
+    assert.equal(sent[1].cancel, sent[0].id);
+  } finally { delete globalThis.webkit; }
+});

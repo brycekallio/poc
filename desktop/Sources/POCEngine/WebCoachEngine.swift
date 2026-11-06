@@ -161,42 +161,71 @@ private final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
 
 /// The page's `webkit.messageHandlers.net`: a fetch done by URLSession for providers whose servers send no
 /// CORS headers on the real reply (api.openai.com, see desktop/CORS.md), which a web view cannot read.
-/// Not a proxy: https and the hosts below only, anything else is refused. The key rides in the request
-/// headers from the page; nothing here stores or logs a request.
-final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
-    static let hosts: Set<String> = ["api.openai.com"]   // keep in sync with NATIVE_HOSTS in extension/src/desktop.js
+/// Not a proxy: https and the hosts below only, anything else is refused, and redirects are never followed
+/// (a redirect could carry the Authorization header to another host). The key rides in the request headers
+/// from the page; nothing here stores or logs a request.
+public final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
+    public static let hosts: Set<String> = ["api.openai.com"]   // keep in sync with NATIVE_HOSTS in extension/src/desktop.js
 
-    static func allows(_ url: URL?) -> Bool {
+    public static func allows(_ url: URL?) -> Bool {
         guard let url, url.scheme == "https", url.port == nil, url.user == nil, let host = url.host?.lowercased() else { return false }
         return hosts.contains(host)
     }
 
-    private let session: URLSession = {
-        let c = URLSessionConfiguration.ephemeral
+    private let session: URLSession
+    private let lock = NSLock()
+    private var inFlight: [String: Task<[String: Any], Never>] = [:]
+
+    public override init() { session = Self.makeSession(.ephemeral); super.init() }
+    /// Tests pass a configuration whose `protocolClasses` stubs the network.
+    init(configuration: URLSessionConfiguration) { session = Self.makeSession(configuration); super.init() }
+
+    private static func makeSession(_ c: URLSessionConfiguration) -> URLSession {
         c.httpCookieStorage = nil; c.urlCache = nil
         return URLSession(configuration: c)
-    }()
+    }
 
-    func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage,
-                               replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void) {
-        guard let m = message.body as? [String: Any], let s = m["url"] as? String, let url = URL(string: s), Self.allows(url) else {
-            replyHandler(["error": "refused"], nil); return
-        }
+    /// Stops the request with this id, if it is still running (the page aborted or timed out).
+    func cancel(_ id: String) {
+        lock.lock(); let task = inFlight[id]; lock.unlock()
+        task?.cancel()
+    }
+
+    /// `{ url, method, headers, body, id }` -> `{ status, headers, body }` or `{ error }`.
+    func fetch(_ m: [String: Any]) async -> [String: Any] {
+        guard let s = m["url"] as? String, let url = URL(string: s), Self.allows(url) else { return ["error": "refused"] }
         var req = URLRequest(url: url)
         req.httpMethod = (m["method"] as? String) ?? "GET"
         for (k, v) in (m["headers"] as? [String: String]) ?? [:] { req.setValue(v, forHTTPHeaderField: k) }
         if let body = m["body"] as? String { req.httpBody = Data(body.utf8) }
         let session = self.session
-        Task {
+        let task = Task<[String: Any], Never> {
             do {
-                let (data, response) = try await session.data(for: req)
-                guard let http = response as? HTTPURLResponse else { await replyHandler(["error": "network"], nil); return }
+                let (data, response) = try await session.data(for: req, delegate: NoRedirects())
+                guard let http = response as? HTTPURLResponse else { return ["error": "network"] }
                 var headers: [String: String] = [:]
                 for (k, v) in http.allHeaderFields { if let k = k as? String, let v = v as? String { headers[k] = v } }
-                await replyHandler(["status": http.statusCode, "headers": headers, "body": String(decoding: data, as: UTF8.self)], nil)
+                return ["status": http.statusCode, "headers": headers, "body": String(decoding: data, as: UTF8.self)]
             } catch {
-                await replyHandler(["error": "network"], nil)
+                return ["error": Task.isCancelled ? "cancelled" : "network"]
             }
         }
+        let id = m["id"] as? String
+        if let id { lock.lock(); inFlight[id] = task; lock.unlock() }
+        let result = await task.value
+        if let id { lock.lock(); inFlight[id] = nil; lock.unlock() }
+        return result
     }
+
+    public func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage,
+                                      replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void) {
+        guard let m = message.body as? [String: Any] else { replyHandler(["error": "refused"], nil); return }
+        if let id = m["cancel"] as? String { cancel(id); replyHandler(nil, nil); return }
+        Task { let r = await self.fetch(m); await replyHandler(r, nil) }
+    }
+}
+
+private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ s: URLSession, task: URLSessionTask, willPerformHTTPRedirection r: HTTPURLResponse,
+                    newRequest: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }

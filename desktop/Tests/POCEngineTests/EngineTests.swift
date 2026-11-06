@@ -157,6 +157,16 @@ final class WebEngineTests: XCTestCase {
         XCTAssertFalse(g.needsSettings)   // "Try again", not "Open settings"
     }
 
+    func testA401BecomesBadKeyWithTheKeyRedacted() async throws {
+        let server = try StubModelServer { _ in (401, "application/json", "{\"error\":\"bad key sk-test-secret\"}") }
+        let cfg = CoachConfig(provider: "custom", model: "m", apiKey: "sk-test-secret", baseUrl: server.baseUrl)
+        guard case let .failure(f) = await try engine().diagnose(config: cfg, draft: "draft", host: "x") else { return XCTFail("expected failure") }
+        XCTAssertEqual(f.code, "bad-key")
+        XCTAssertTrue(f.needsSettings)
+        XCTAssertFalse(f.message.contains("sk-test-secret"))
+        XCTAssertFalse(String(describing: f).contains("sk-test-secret"))
+    }
+
     func testServerDownIsANetworkError() async throws {
         let cfg = CoachConfig(provider: "custom", model: "m", baseUrl: "http://127.0.0.1:1/v1", timeoutSeconds: 10)   // nothing listens on port 1
         guard case let .failure(f) = await try engine().diagnose(config: cfg, draft: "draft", host: "x") else { return XCTFail("expected failure") }
@@ -200,7 +210,7 @@ final class WebEngineTests: XCTestCase {
 
 /// Real requests from the web view's origin (app://poc) to each hosted provider, carrying a deliberately
 /// invalid key. A 401 the page can read (-> "bad-key") proves the CORS preflight passed; a blocked
-/// preflight would surface as "network". No real key, no billable call. Skipped when offline.
+/// preflight would surface as "network". No real key, no billable call. Opt-in (POC_LIVE_TESTS=1); skipped offline.
 @MainActor
 final class HostedProviderTests: XCTestCase {
     private static let fake = "sk-invalid-poc-t7"
@@ -208,6 +218,7 @@ final class HostedProviderTests: XCTestCase {
         .appendingPathComponent("Resources/web")
 
     private func probe(_ config: CoachConfig, host: String) async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["POC_LIVE_TESTS"] == "1", "live provider probes: set POC_LIVE_TESTS=1")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: Self.web.appendingPathComponent("engine.js").path), "engine.js missing")
         var reachable = false
         if let url = URL(string: "https://\(host)/"), let (_, r) = try? await URLSession.shared.data(from: url), r is HTTPURLResponse { reachable = true }
@@ -243,6 +254,60 @@ final class NativeFetchTests: XCTestCase {
         XCTAssertFalse(NativeFetch.allows(URL(string: "https://user@api.openai.com/")))
         XCTAssertFalse(NativeFetch.allows(URL(string: "http://localhost:11434/v1")))
         XCTAssertFalse(NativeFetch.allows(nil))
+    }
+}
+
+/// Counts and holds requests so NativeFetch can be tested with no network.
+final class StubProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var requests: [URL] = []
+    nonisolated(unsafe) static var stopped = 0
+    nonisolated(unsafe) static var mode = "redirect"   // "redirect" | "hang"
+    static let lock = NSLock()
+    static func reset(_ mode: String) { lock.lock(); requests = []; stopped = 0; self.mode = mode; lock.unlock() }
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.lock.lock(); Self.requests.append(request.url!); let mode = Self.mode; Self.lock.unlock()
+        guard mode == "redirect" else { return }   // "hang": never answers
+        if request.url?.host == "api.openai.com" {
+            let r = HTTPURLResponse(url: request.url!, statusCode: 302, httpVersion: nil, headerFields: ["Location": "https://evil.example/steal"])!
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: URL(string: "https://evil.example/steal")!), redirectResponse: r)
+            // If the session declines the redirect, the 302 itself is the answer.
+            client?.urlProtocol(self, didReceive: r, cacheStoragePolicy: .notAllowed); client?.urlProtocolDidFinishLoading(self)
+        } else {
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: [:])!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data("leaked".utf8)); client?.urlProtocolDidFinishLoading(self)
+        }
+    }
+    override func stopLoading() { Self.lock.lock(); Self.stopped += 1; Self.lock.unlock() }
+}
+
+final class NativeFetchNetworkTests: XCTestCase {
+    private func native() -> NativeFetch {
+        let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubProtocol.self]
+        return NativeFetch(configuration: c)
+    }
+    private let request: [String: Any] = ["id": "n1", "url": "https://api.openai.com/v1/chat/completions", "method": "POST",
+                                          "headers": ["authorization": "Bearer sk-x"], "body": "{}"]
+
+    func testARedirectIsNeverFollowed() async {
+        StubProtocol.reset("redirect")
+        let r = await native().fetch(request)
+        XCTAssertEqual(r["status"] as? Int, 302)
+        XCTAssertEqual(StubProtocol.requests.map(\.host), ["api.openai.com"], "a second request would carry the key to another host")
+    }
+
+    func testCancelStopsTheRequestAndAnswersCancelled() async throws {
+        StubProtocol.reset("hang")
+        let n = native()
+        async let reply = n.fetch(request)
+        let deadline = Date().addingTimeInterval(5)
+        while StubProtocol.requests.isEmpty && Date() < deadline { try await Task.sleep(nanoseconds: 20_000_000) }
+        n.cancel("n1")
+        let r = await reply
+        XCTAssertEqual(r["error"] as? String, "cancelled")
+        XCTAssertNil(r["status"])
+        XCTAssertGreaterThanOrEqual(StubProtocol.stopped, 1)
     }
 }
 
