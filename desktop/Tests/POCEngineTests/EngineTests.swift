@@ -177,7 +177,11 @@ final class WebEngineTests: XCTestCase {
         let e = try engine()
         let cfg = config(silent)
         async let result = e.diagnose(config: cfg, draft: "draft", host: "x")
-        try await Task.sleep(nanoseconds: 700_000_000)
+        // Cancel only once the request is in flight: a fixed sleep raced the web view's start-up under load.
+        let deadline = Date().addingTimeInterval(15)
+        while !silent.requests.contains(where: { $0.method == "POST" }) && Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
         e.cancel()
         guard case let .failure(f) = await result else { return XCTFail("expected failure") }
         XCTAssertTrue(f.isCancellation)
