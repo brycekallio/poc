@@ -12,7 +12,7 @@ reply only if it carries `Access-Control-Allow-Origin` on the real response, not
 
 Fix: `webkit.messageHandlers.net` (`NativeFetch` in `Sources/POCEngine/WebCoachEngine.swift`, hosts listed in
 `NATIVE_HOSTS` in `extension/src/desktop.js`). https and `api.openai.com` only; every other URL is refused. The reply arrives whole,
-so OpenAI rewrites appear at once instead of streaming. Tests: `HostedProviderTests` (live, invalid key, skipped offline)
+so OpenAI rewrites appear at once instead of streaming. Tests: `HostedProviderTests` (live, invalid key; runs only with `POC_LIVE_TESTS=1`)
 and `NativeFetchTests`.
 
 Unresolved: a user-chosen OpenAI-compatible server that sends no CORS headers will still fail as "network".
