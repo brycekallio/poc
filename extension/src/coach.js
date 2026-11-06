@@ -155,13 +155,7 @@ Write the prompt the user would have written with more time: in their voice (fir
 Apply these techniques, leaving one out only when its rule allows it.
 ${TECHNIQUES.map((t, i) => `${i + 1}. ${t.id}: ${t.rule}`).join("\n")}
 
-Never do these, and remove them if the draft has them, since current models follow plain instructions and these backfire:
-- ALL-CAPS emphasis, "CRITICAL", "MUST", "IMPORTANT", threats, tips or bribes.
-- "Think step by step", "explain your reasoning", or other instructions to show reasoning; current assistants reason on their own.
-- Headings, sections or a role/instructions/format template on a conversational ask. Match the prompt's style to the answer wanted: a prose question stays prose.
-- "Be thorough", "be comprehensive", "if in doubt, do more" filler.
-- Invented example inputs or outputs. Keep examples only if the user supplied them.
-- JSON to wrap documents. Use a plain label or quotes.
+Never add or keep: ALL-CAPS emphasis, "CRITICAL"/"MUST", threats or tips; "think step by step"; headings or a role/format template on a conversational ask (a prose question stays prose); "be thorough" filler; invented example inputs or outputs; JSON to wrap documents (use a plain label or quotes).
 
 Return the rewritten prompt, then list only the techniques you applied. Give each one's id and, as evidence, 3 to 8 words from your rewritten prompt that apply it, copied character for character. "deliverable" is always listed.`;
 
