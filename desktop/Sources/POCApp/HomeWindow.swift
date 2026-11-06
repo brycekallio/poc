@@ -218,6 +218,10 @@ struct HomeView: View {
                     Spacer()
                 }
             }
+            if model.shortcutNote.isEmpty && model.shortcutState.note(for: model.shortcut) == nil {
+                Text("Click the shortcut to record a new one.")
+                    .font(Theme.font(12)).foregroundColor(t.muted).padding(.leading, 106)
+            }
             if !model.shortcutNote.isEmpty {
                 Text(model.shortcutNote).font(Theme.font(12)).foregroundColor(model.shortcutNoteIsError ? t.negative : t.muted)
                     .padding(.leading, 106)
