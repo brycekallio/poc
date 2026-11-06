@@ -152,3 +152,13 @@ test("drift guard: the engine imports nothing from the Chrome side", () => {
     assert.doesNotMatch(readFileSync(new URL(`../src/${f}`, import.meta.url), "utf8"), /\bchrome\.(storage|runtime|tabs)/, f);
   }
 });
+
+test("reply shapes: call 1 is { ok, reader, questions }; call 2 carries the rewrite and no diagnosis or key", async () => {
+  stub(chat(diagnosis));
+  assert.deepEqual(Object.keys(await diagnoseDraft({ config: ollama, draft, host: "x" })).sort(), ["ok", "questions", "reader"]);
+  stub(chat(rewritten));
+  const out = await rewriteDraft({ config: { ...ollama, apiKey: "sk-secret" }, draft, host: "x", reader: "ai", answers: [] });
+  for (const k of ["ok", "prompt", "techniques", "unverified"]) assert.ok(k in out, k);
+  assert.ok(!("diagnosis" in out) && !("config" in out) && !("apiKey" in out));
+  assert.ok(!JSON.stringify(out).includes("sk-secret"));
+});

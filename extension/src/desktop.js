@@ -59,17 +59,16 @@ function explain(err, call, timeoutMs) {
 /** Call 1. `args`: { config, draft, host, timeoutMs? } → { reader, questions } */
 export function diagnoseDraft({ config, draft, host, timeoutMs = DEFAULT_TIMEOUT_MS }) {
   return run(timeoutMs, async () => {
-    // Only the reader and the questions leave: the diagnosis stays internal (CLAUDE.md "do not break").
-    const { reader, questions } = await diagnose({ config: await ready(config), draft, host });
-    return { reader, questions };
+    // The diagnosis stays internal (CLAUDE.md "do not break"); everything else leaves.
+    const { diagnosis, ...result } = await diagnose({ config: await ready(config), draft, host });
+    return result;
   });
 }
 
 /** Call 2. `args`: { config, draft, answers, reader, host, timeoutMs? }; `onPartial` gets the rewrite so far. */
 export function rewriteDraft({ config, draft, answers, reader, host, timeoutMs = DEFAULT_TIMEOUT_MS }, onPartial) {
   return run(timeoutMs, async () => {
-    const { prompt, techniques, unverified } = await rewrite({ config: await ready(config), draft, answers, host, reader, onPartial });
-    return { prompt, techniques, unverified };
+    return rewrite({ config: await ready(config), draft, answers, host, reader, onPartial });
   });
 }
 
