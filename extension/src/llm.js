@@ -113,6 +113,7 @@ async function compatComplete(config, { system, messages, schema, onText }) {
     model: config.model,
     messages: [{ role: "system", content: system }, ...messages],
     response_format: { type: "json_schema", json_schema: { name: "reply", strict: true, schema: shape } },
+    ...sampling(config),
     ...stream,
   });
   // Not every server takes a schema. Ask in words and let the parse below judge.
@@ -120,6 +121,7 @@ async function compatComplete(config, { system, messages, schema, onText }) {
     res = await call(config, "/chat/completions", {
       model: config.model,
       messages: [{ role: "system", content: `${system}\n\nReply with only a JSON object matching this JSON Schema, and nothing else:\n${JSON.stringify(shape)}` }, ...messages],
+      ...sampling(config),
       ...stream,
     });
   }
@@ -132,6 +134,12 @@ async function compatComplete(config, { system, messages, schema, onText }) {
   if (!parsed.success) throw new CoachError("unparseable");
   return parsed.data;
 }
+
+// Optional sampling knobs (the eval harness sets them; the product leaves them to the server).
+const sampling = ({ temperature, seed }) => ({
+  ...(temperature === undefined ? {} : { temperature }),
+  ...(seed === undefined ? {} : { seed }),
+});
 
 // Server-sent events: "data: {json}" lines, ending with "data: [DONE]". Returns
 // the same shape a non-streamed reply's first choice has.
