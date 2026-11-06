@@ -114,8 +114,8 @@ final class SelectionReaderTests: XCTestCase {
 }
 
 final class WriteBackTests: XCTestCase {
-    func writer(_ ax: FakeAX, _ keys: FakeKeys, secure: Bool = false) -> WriteBack {
-        WriteBack(ax: ax, keys: keys, secure: FakeSecure(isSecureInputOn: secure), pasteboard: keys.pb, settle: 0.1, restoreDelay: 0)
+    func writer(_ ax: FakeAX, _ keys: FakeKeys, secure: Bool = false, settle: TimeInterval = 0.1) -> WriteBack {
+        WriteBack(ax: ax, keys: keys, secure: FakeSecure(isSecureInputOn: secure), pasteboard: keys.pb, settle: settle, restoreDelay: 0)
     }
     func testVerifiedPasteRestoresClipboard() {
         let pb = privateBoard(); pb.setString("my clipboard", forType: .string)
@@ -130,7 +130,8 @@ final class WriteBackTests: XCTestCase {
         var reads = 0
         ax.onField = { reads += 1; if reads == 4 { ax.field = "NEW" } }
         let keys = FakeKeys(pb)
-        XCTAssertEqual(writer(ax, keys).write("NEW"), .pasted)
+        // Generous settle: the test needs 4 polls, which a loaded machine may not fit in 0.1 s.
+        XCTAssertEqual(writer(ax, keys, settle: 5).write("NEW"), .pasted)
     }
     func testPasteIgnoredLeavesRewriteOnClipboard() {
         let pb = privateBoard(); pb.setString("mine", forType: .string)
@@ -185,5 +186,22 @@ final class PanelPlacementTests: XCTestCase {
         let s2 = CGRect(x: 1440, y: 0, width: 1920, height: 1080)
         let p = PanelPlacement.origin(panel: panel, selection: CGRect(x: 1500, y: 100, width: 50, height: 18), screen: s2)
         XCTAssertEqual(p.x, 1500)
+    }
+}
+
+final class CoachFailureRedactionTests: XCTestCase {
+    func testKeyIsScrubbedFromMessage() {
+        let key = "sk-ant-api03-SECRET+/=xyz"
+        let f = CoachFailure(code: "bad-key", message: "Invalid key \(key); encoded \(key.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!)")
+        let r = f.redacting(key)
+        XCTAssertFalse(r.message.contains(key))
+        XCTAssertFalse(r.message.contains("SECRET"))
+        XCTAssertEqual(r.code, "bad-key")
+        XCTAssertTrue(r.message.contains("[key hidden]"))
+    }
+    func testNoKeyLeavesMessageAlone() {
+        let f = CoachFailure(code: "local-down", message: "Ollama is not running.")
+        XCTAssertEqual(f.redacting(nil), f)
+        XCTAssertEqual(f.redacting(""), f)
     }
 }

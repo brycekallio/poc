@@ -53,6 +53,17 @@ public struct CoachFailure: Error, Equatable {
     }
     /// Stopped on purpose (the card was closed); nothing to show.
     public var isCancellation: Bool { code == "cancelled" }
+
+    /// The same failure with `secret` (the API key) scrubbed from the message. Provider errors
+    /// are shown verbatim and some echo the key back; it must never reach the screen.
+    public func redacting(_ secret: String?) -> CoachFailure {
+        guard let secret, secret.count >= 4 else { return self }
+        var text = message.replacingOccurrences(of: secret, with: "[key hidden]")
+        if let encoded = secret.addingPercentEncoding(withAllowedCharacters: .alphanumerics), encoded != secret {
+            text = text.replacingOccurrences(of: encoded, with: "[key hidden]")
+        }
+        return CoachFailure(code: code, message: text)
+    }
 }
 
 /// Which model to talk to. Provider, model and base URL are settings; the key is a secret

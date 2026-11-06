@@ -115,7 +115,12 @@ export function createSession({ diagnose, rewrite, onChange = () => {} }) {
   return self;
 }
 
+// The wording for failures that have no message of their own. One copy, so the
+// panel, the worker link and the session cannot drift apart.
+export const unknownFailure = () => ({ code: "unknown", message: "Something went wrong." });
+export const orphanedFailure = () => ({ code: "orphaned", message: "P.O.C was updated. Reload this page to use it." });
+
 function asFailure(err) {
   if (err && typeof err.code === "string" && typeof err.message === "string") return { code: err.code, message: err.message };
-  return { code: "unknown", message: "Something went wrong." };
+  return unknownFailure();
 }
