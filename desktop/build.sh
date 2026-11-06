@@ -17,7 +17,9 @@ INSTALL="${POC_INSTALL_DIR:-$HOME/Applications}"
 mkdir -p "$INSTALL"
 APP="$INSTALL/POC.app"
 # Quit a running POC first (the old one may have been up for days) so the new build is the one that opens.
-if pgrep -x POC >/dev/null; then pkill -x POC || true; sleep 1; fi
+# Quit only this app (matched by its bundle's executable path), never another process that happens to be named POC.
+POC_EXE_PATTERN='/POC\.app/Contents/MacOS/POC$'
+if pgrep -f "$POC_EXE_PATTERN" >/dev/null; then pkill -f "$POC_EXE_PATTERN" || true; sleep 1; fi
 rm -rf "$APP"
 rm -rf dist dist.nosync; ln -s "$INSTALL" dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fonts"
