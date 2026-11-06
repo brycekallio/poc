@@ -23,6 +23,7 @@ public final class WebCoachEngine: NSObject, CoachEngine, WKNavigationDelegate {
         // Served from app://poc, not file://: a file page sends "Origin: null", which Ollama refuses
         // (403), while it trusts app:// by default. Same reason the extension strips Chrome's Origin.
         config.setURLSchemeHandler(BundleSchemeHandler(directory: directory), forURLScheme: "app")
+        config.userContentController.addScriptMessageHandler(NativeFetch(), contentWorld: .page, name: "net")
         webView = WKWebView(frame: .zero, configuration: config)
         super.init()
         config.userContentController.add(WeakHandler(self), name: "poc")
@@ -156,4 +157,46 @@ private final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         task.didFinish()
     }
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+}
+
+/// The page's `webkit.messageHandlers.net`: a fetch done by URLSession for providers whose servers send no
+/// CORS headers on the real reply (api.openai.com, see desktop/CORS.md), which a web view cannot read.
+/// Not a proxy: https and the hosts below only, anything else is refused. The key rides in the request
+/// headers from the page; nothing here stores or logs a request.
+final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
+    static let hosts: Set<String> = ["api.openai.com"]   // keep in sync with NATIVE_HOSTS in extension/src/desktop.js
+
+    static func allows(_ url: URL?) -> Bool {
+        guard let url, url.scheme == "https", url.port == nil, url.user == nil, let host = url.host?.lowercased() else { return false }
+        return hosts.contains(host)
+    }
+
+    private let session: URLSession = {
+        let c = URLSessionConfiguration.ephemeral
+        c.httpCookieStorage = nil; c.urlCache = nil
+        return URLSession(configuration: c)
+    }()
+
+    func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void) {
+        guard let m = message.body as? [String: Any], let s = m["url"] as? String, let url = URL(string: s), Self.allows(url) else {
+            replyHandler(["error": "refused"], nil); return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = (m["method"] as? String) ?? "GET"
+        for (k, v) in (m["headers"] as? [String: String]) ?? [:] { req.setValue(v, forHTTPHeaderField: k) }
+        if let body = m["body"] as? String { req.httpBody = Data(body.utf8) }
+        let session = self.session
+        Task {
+            do {
+                let (data, response) = try await session.data(for: req)
+                guard let http = response as? HTTPURLResponse else { await replyHandler(["error": "network"], nil); return }
+                var headers: [String: String] = [:]
+                for (k, v) in http.allHeaderFields { if let k = k as? String, let v = v as? String { headers[k] = v } }
+                await replyHandler(["status": http.statusCode, "headers": headers, "body": String(decoding: data, as: UTF8.self)], nil)
+            } catch {
+                await replyHandler(["error": "network"], nil)
+            }
+        }
+    }
 }

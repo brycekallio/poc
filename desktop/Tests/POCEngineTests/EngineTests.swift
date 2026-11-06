@@ -234,6 +234,18 @@ final class HostedProviderTests: XCTestCase {
     }
 }
 
+final class NativeFetchTests: XCTestCase {
+    func testOnlyHostedProviderHostsOverHTTPSAreAllowed() {
+        XCTAssertTrue(NativeFetch.allows(URL(string: "https://api.openai.com/v1/chat/completions")))
+        XCTAssertFalse(NativeFetch.allows(URL(string: "http://api.openai.com/v1/models")))
+        XCTAssertFalse(NativeFetch.allows(URL(string: "https://api.openai.com.evil.com/v1")))
+        XCTAssertFalse(NativeFetch.allows(URL(string: "https://evil.com/")))
+        XCTAssertFalse(NativeFetch.allows(URL(string: "https://user@api.openai.com/")))
+        XCTAssertFalse(NativeFetch.allows(URL(string: "http://localhost:11434/v1")))
+        XCTAssertFalse(NativeFetch.allows(nil))
+    }
+}
+
 final class PartialLog: @unchecked Sendable {
     private let lock = NSLock(); private var values: [String] = []
     func add(_ s: String) { lock.lock(); values.append(s); lock.unlock() }

@@ -14,6 +14,34 @@ import { describeError, diagnose, ready, rewrite } from "./coach.js";
 
 export const DEFAULT_TIMEOUT_MS = 90_000; // a cold local model can spend 30 s just loading
 
+// Hosts whose servers answer a browser's real request without CORS headers (probed in desktop/CORS.md),
+// so the page cannot read their reply. Their calls go through Swift's URLSession instead. This list
+// must match NativeFetch.hosts in WebCoachEngine.swift; Swift refuses every other host.
+export const NATIVE_HOSTS = ["api.openai.com"];
+
+const bridge = () => globalThis.webkit?.messageHandlers?.net;
+const isNative = (url) => {
+  try {
+    const u = new URL(String(url));
+    return !!bridge() && u.protocol === "https:" && NATIVE_HOSTS.includes(u.hostname);
+  } catch {
+    return false;
+  }
+};
+
+/** fetch() through Swift: the whole reply arrives at once, so a streamed rewrite shows up in one piece. */
+async function nativeFetch(url, init, signal) {
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  const aborted = new Promise((_, reject) =>
+    signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true }));
+  const reply = await Promise.race([
+    bridge().postMessage({ url: String(url), method: init.method ?? "GET", headers: init.headers ?? {}, body: init.body ?? null }),
+    aborted,
+  ]);
+  if (!reply || reply.error) throw new TypeError("network"); // what fetch itself throws when it cannot connect
+  return new Response(reply.body, { status: reply.status, headers: reply.headers });
+}
+
 let active = null; // the call in flight: { controller, timedOut, cancelled }
 
 // llm.js calls the global fetch. While a call runs, fetch carries that call's abort signal, so a
@@ -21,7 +49,7 @@ let active = null; // the call in flight: { controller, timedOut, cancelled }
 function withSignal(signal) {
   const current = globalThis.fetch;
   const base = current.__pocBase ?? current; // never stack wrappers: a superseded call's signal must not leak
-  const wrapped = (url, init = {}) => base(url, { ...init, signal });
+  const wrapped = (url, init = {}) => (isNative(url) ? nativeFetch(url, init, signal) : base(url, { ...init, signal }));
   wrapped.__pocBase = base;
   globalThis.fetch = wrapped;
   return () => { if (globalThis.fetch === wrapped) globalThis.fetch = base; };
