@@ -11,15 +11,27 @@ final class HomeModel: ObservableObject {
     @Published var statusIsError = false
     @Published var testing = false
     @Published var showProblems = false
+    @Published var shortcut: Shortcut
+    @Published var recording = false
+    @Published var shortcutNote = ""
+    @Published var shortcutNoteIsError = false
+    @Published var shortcutState: ShortcutState = .working
 
     let settings: CoachSettings
     /// One cheap real call with the form's config (no Keychain write). Provided by the app delegate.
     var runTest: (CoachConfig) async -> Result<Int, CoachFailure> = { _ in .failure(CoachFailure(code: "none", message: "No engine.")) }
     var onSaved: () -> Void = {}
     var onQuit: () -> Void = { NSApp.terminate(nil) }
+    /// Applies a new shortcut live; false if macOS refused it. Provided by the app delegate.
+    var onShortcutChange: (Shortcut) -> Bool = { _ in true }
+    var onRecording: (Bool) -> Void = { _ in }
+    let shortcutStore: ShortcutStore
+    private var monitor: Any?
 
-    init(settings: CoachSettings) {
+    init(settings: CoachSettings, shortcutStore: ShortcutStore = ShortcutStore()) {
         self.settings = settings
+        self.shortcutStore = shortcutStore
+        shortcut = shortcutStore.current
         form = SettingsForm.load(from: settings)
     }
 
@@ -42,6 +54,55 @@ final class HomeModel: ObservableObject {
             // Never echo the key; the Keychain status code is enough.
             status = "Couldn't save the key to your Keychain (\(error)). It was not stored anywhere else."; statusIsError = true
         }
+    }
+
+    // MARK: Shortcut recorder
+
+    func startRecording() {
+        guard !recording else { return }
+        recording = true; shortcutNote = "Press the new shortcut. Esc cancels."; shortcutNoteIsError = false
+        onRecording(true)
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self else { return event }
+                if event.keyCode == 53 { self.stopRecording(); self.shortcutNote = ""; return nil }   // Esc
+                self.capture(Shortcut(keyCode: Int(event.keyCode), modifiers: Hotkey.modifiers(from: event.modifierFlags)))
+                return nil
+            }
+        }
+    }
+
+    func stopRecording() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        guard recording else { return }
+        recording = false
+        onRecording(false)
+    }
+
+    /// Validate, apply live, then save. A rejected shortcut keeps the recorder open so the user can try again.
+    func capture(_ s: Shortcut) {
+        if let p = s.problem { shortcutNote = Shortcut.message(for: p); shortcutNoteIsError = true; return }
+        // Try it while still recording; only stop once macOS accepts it, so a refusal lets the user try again at once.
+        guard onShortcutChange(s) else {
+            shortcutNote = "\(s.display) is already used by another app. Try another."; shortcutNoteIsError = true; return
+        }
+        shortcutState = .working
+        stopRecording()
+        shortcutStore.set(s)
+        shortcut = s
+        shortcutNote = "Saved. Works right now."; shortcutNoteIsError = false
+    }
+
+    func resetShortcut() {
+        stopRecording()
+        guard onShortcutChange(.default) else {
+            shortcutNote = "\(Shortcut.default.display) is already used by another app."; shortcutNoteIsError = true; return
+        }
+        shortcutStore.reset()
+        shortcutState = .working
+        shortcut = .default
+        shortcutNote = "Back to \(Shortcut.default.display)."; shortcutNoteIsError = false
     }
 
     func test() {
@@ -101,7 +162,7 @@ struct HomeView: View {
                 Text("POC is running.").font(Theme.font(13, .semibold))
             }
             body("It lives in the menu bar at the top of your screen (the “p●c” icon). On a Mac with a notch the icon can hide behind it; this window is the way back in. Open POC again any time to see it.")
-            body("To use it: select your draft in any app, then press ⌃⌥P.")
+            body("To use it: select your draft in any app, then press \(model.shortcut.display).")
         }
     }
 
@@ -140,6 +201,32 @@ struct HomeView: View {
                     SecureField(model.form.hasSavedKey ? "Saved in Keychain — leave blank to keep" : "Paste your API key", text: $model.form.typedKey)
                         .textFieldStyle(.roundedBorder)
                 }
+            }
+            row("Shortcut") {
+                HStack(spacing: 10) {
+                    Button { model.recording ? model.stopRecording() : model.startRecording() } label: {
+                        Text(model.recording ? "Press keys…" : model.shortcut.display)
+                            .font(Theme.font(13, .medium))
+                            .frame(minWidth: 84)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .foregroundColor(model.recording ? t.onPrimary : t.text)
+                            .background(model.recording ? t.hue : t.raised)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous))
+                    }.buttonStyle(.plain)
+                    pill("Reset to \(Shortcut.default.display)") { model.resetShortcut() }
+                        .disabled(model.shortcut == .default && !model.recording)
+                    Spacer()
+                }
+            }
+            if model.shortcutNote.isEmpty && model.shortcutState.note(for: model.shortcut) == nil {
+                Text("Click the shortcut to record a new one.")
+                    .font(Theme.font(12)).foregroundColor(t.muted).padding(.leading, 106)
+            }
+            if !model.shortcutNote.isEmpty {
+                Text(model.shortcutNote).font(Theme.font(12)).foregroundColor(model.shortcutNoteIsError ? t.negative : t.muted)
+                    .padding(.leading, 106)
+            } else if let taken = model.shortcutState.note(for: model.shortcut) {
+                Text(taken).font(Theme.font(12)).foregroundColor(t.negative).padding(.leading, 106)
             }
             if model.showProblems {
                 ForEach(model.form.problems, id: \.self) { Text(SettingsForm.message(for: $0)).font(Theme.font(12)).foregroundColor(t.negative) }
