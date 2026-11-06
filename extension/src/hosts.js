@@ -54,6 +54,12 @@ export const HOSTS = [
 ];
 
 /** Every page address the content script may run on, for the manifest and for tabs that were open at install. */
+// How the model is told a box is on a chat site. coach.js's echo check looks for
+// AI_CHAT; the Mac app's HostLabel.swift spells the same phrase ("... app"), and
+// test/host-label.test.mjs fails if the two drift.
+export const AI_CHAT = "an AI chat";
+export const chatSiteLabel = (label) => `${label}, ${AI_CHAT} site`;
+
 export const CHAT_URLS = HOSTS.flatMap((h) => h.urls);
 
 // Only the extension's own setup page (a practice box) gets here without being

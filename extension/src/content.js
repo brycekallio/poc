@@ -1,7 +1,7 @@
 import { send, streamRewrite } from "./bridge.js";
 import { caretRect, groundOf } from "./caret.js";
 import { loadFonts } from "./fonts.js";
-import { currentHost, findPromptBox, followsFocus, readPrompt } from "./hosts.js";
+import { chatSiteLabel, currentHost, findPromptBox, followsFocus, readPrompt } from "./hosts.js";
 import { createCoach } from "./panel.js";
 import { createSession } from "./session.js";
 import { writeBack } from "./writeback.js";
@@ -23,7 +23,7 @@ const host = currentHost();
 // draft decides.
 const where = location.protocol === "chrome-extension:"
   ? "a practice box"
-  : host.generic ? location.hostname : `${host.label}, an AI chat site`;
+  : host.generic ? location.hostname : chatSiteLabel(host.label);
 // The worker also injects this script into tabs that were open when P.O.C was
 // installed or updated, so it can arrive in a tab that already has it.
 if (!globalThis.__pocStarted) {
