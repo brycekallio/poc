@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modelItem: NSMenuItem!
 
     private let settings = CoachSettings()
+    private let shortcutStore = ShortcutStore()
+    private var coachItem: NSMenuItem!
     private lazy var home: HomeWindowController = {
         let m = HomeModel(settings: settings)
         m.runTest = { [weak self] config in
@@ -26,6 +28,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         m.onSaved = { [weak self] in self?.refreshModelItem() }
+        m.shortcutState = hotkey?.state ?? .working
+        m.onRecording = { [weak self, weak m] on in
+            on ? self?.hotkey?.suspend() : self?.hotkey?.resume()
+            if !on, let state = self?.hotkey?.state { m?.shortcutState = state; self?.refreshCoachItem(self?.shortcutStore.current ?? .default) }
+        }
+        m.onShortcutChange = { [weak self, weak m] s in
+            guard let self, self.hotkey?.update(s) ?? true else {
+                if m?.recording == true { self?.hotkey?.suspend() }   // update() put the old one back; keep it off while the recorder is open
+                return false
+            }
+            self.refreshCoachItem(s)
+            return true
+        }
         return HomeWindowController(model: m)
     }()
     /// The coach: the extension's JS in a hidden web view. Started at launch so the first press is not slow.
@@ -48,7 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Theme.registerFonts()
         buildMenu()
-        hotkey = Hotkey { [weak self] in self?.trigger() }
+        hotkey = Hotkey(shortcutStore.current) { [weak self] in self?.trigger() }
+        refreshCoachItem(shortcutStore.current)
         panel.onUse = { [weak self] in self?.use() }
         panel.onReturn = { [weak self] in self?.pressReturn() }
         panel.onDigit = { [weak self] n in self?.pickOption(n) }
@@ -110,8 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false
         let coach = NSMenuItem(title: "Coach the selected text", action: #selector(trigger), keyEquivalent: "p")
-        coach.keyEquivalentModifierMask = [.control, .option]
         coach.target = self
+        coachItem = coach
+        refreshCoachItem(shortcutStore.current)
         menu.addItem(coach)
         modelItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         modelItem.isEnabled = false
@@ -135,6 +152,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         refreshAccessItem()
         refreshModelItem()
+    }
+
+    /// The menu shows the current shortcut next to "Coach the selected text" (letters and digits only; other keys show none).
+    fileprivate func refreshCoachItem(_ s: Shortcut) {
+        // A shortcut macOS refused doesn't work, so the menu must not show it as if it did.
+        guard hotkey?.state ?? .working == .working else { coachItem.keyEquivalent = ""; coachItem.keyEquivalentModifierMask = []; return }
+        coachItem.keyEquivalent = s.menuCharacter ?? ""
+        var mask: NSEvent.ModifierFlags = []
+        if s.modifiers.contains(.control) { mask.insert(.control) }
+        if s.modifiers.contains(.option) { mask.insert(.option) }
+        if s.modifiers.contains(.command) { mask.insert(.command) }
+        if s.modifiers.contains(.shift) { mask.insert(.shift) }
+        coachItem.keyEquivalentModifierMask = mask
     }
 
     fileprivate func refreshModelItem() {
@@ -186,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard Permissions.accessibilityGranted else {
             Permissions.promptAccessibility()
             panel.show(.message(title: "POC needs Accessibility",
-                                detail: "1. Click the button below.\n2. Switch POC on in the list (the switch turns blue).\n3. Select your text and press ⌃⌥P again.",
+                                detail: "1. Click the button below.\n2. Switch POC on in the list (the switch turns blue).\n3. Select your text and press \(shortcutStore.current.display) again.",
                                 action: .openAccessibility), near: nil, takeKeys: true)
             return
         }
@@ -203,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             startSession(draft: draft, anchor: rect ?? ax.selectionRect())
         case .nothingSelected:
             panel.show(.message(title: "Select your draft first",
-                                detail: "Highlight the text in \(target.localizedName ?? "the app"), then press ⌃⌥P.", action: nil),
+                                detail: "Highlight the text in \(target.localizedName ?? "the app"), then press \(shortcutStore.current.display).", action: nil),
                        near: rect, takeKeys: true)
         case .secureInput:
             panel.show(.message(title: "A password field is focused",
@@ -321,12 +351,13 @@ extension AppDelegate {
     /// POC_SELFTEST=home: PNGs of the home window with a throwaway settings store, never on screen.
     fileprivate func renderHome() {
         let scratch = CoachSettings(defaults: UserDefaults(suiteName: "poc.render.\(UUID().uuidString)")!, secrets: InMemorySecretStore())
+        let scratchShortcut = ShortcutStore(defaults: UserDefaults(suiteName: "poc.render.sc.\(UUID().uuidString)")!)
         scratch.provider = "anthropic"
-        let m = HomeModel(settings: scratch)
+        let m = HomeModel(settings: scratch, shortcutStore: scratchShortcut)
         m.accessibility = false
         HomeWindowController(model: m).render(to: "home-needs-key", hasKeyState: false)
         scratch.provider = "ollama"
-        let m2 = HomeModel(settings: scratch)
+        let m2 = HomeModel(settings: scratch, shortcutStore: scratchShortcut)
         m2.accessibility = true
         m2.status = "Connected. The model answered."
         HomeWindowController(model: m2).render(to: "home-ok", hasKeyState: true)

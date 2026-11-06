@@ -11,6 +11,8 @@ import POCEngine
 //
 // Flags: --draft "…" --provider id --model id --base-url url --runs n --web <dir with engine.js>
 //        --pick first|last (which option to answer with)  --timeout seconds
+// Exits non-zero when the loop breaks: engine error or timeout, no questions, a malformed question
+// (blank text, no options), a blank rewrite, or a rewrite identical to the draft. Checks are structural only.
 var args = Array(CommandLine.arguments.dropFirst())
 func flag(_ name: String, _ fallback: String) -> String {
     guard let i = args.firstIndex(of: name), i + 1 < args.count else { return fallback }
@@ -39,6 +41,10 @@ let host = HostLabel.label(forApp: "Claude")
             let c1 = Date().timeIntervalSince(t0)
             print("run \(run) · call 1: \(String(format: "%.1f", c1)) s · reader \(d.reader.rawValue) · \(d.questions.count) question(s)")
             for q in d.questions { print("   ? \(q.question)  [\(q.options.joined(separator: " | "))]") }
+            if d.questions.isEmpty { print("FAIL: call 1 returned no questions"); return 1 }
+            if d.questions.contains(where: { $0.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || $0.options.isEmpty }) {
+                print("FAIL: call 1 returned a malformed question (blank text or no options)"); return 1
+            }
             let answers = d.questions.map { Answer(question: $0.question, answer: pick == "last" ? $0.options.last : $0.options.first) }
             let t1 = Date()
             let first = FirstWords()
@@ -48,6 +54,9 @@ let host = HostLabel.label(forApp: "Claude")
             switch result {
             case let .failure(f): print("call 2 FAILED [\(f.code)] \(f.message)"); return 1
             case let .success(r):
+                let out = r.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                if out.isEmpty { print("FAIL: call 2 returned an empty rewrite"); return 1 }
+                if out == draft.trimmingCharacters(in: .whitespacesAndNewlines) { print("FAIL: rewrite is identical to the draft"); return 1 }
                 let c2 = Date().timeIntervalSince(t1)
                 totals.append((c1, c2, first.seconds))
                 print("   call 2: \(String(format: "%.1f", c2)) s" + (first.seconds.map { " (first words after \(String(format: "%.1f", $0)) s)" } ?? "")
