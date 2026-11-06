@@ -88,14 +88,16 @@ struct MacSecureInput: SecureInputProbe {
 
 /// The global shortcut. Carbon's RegisterEventHotKey needs no permission and swallows the keypress,
 /// so the app underneath never also reacts to it. (NSEvent global monitors can't do either.)
+/// Hand-rolled instead of the KeyboardShortcuts package: no dependency, so the build stays offline-safe.
 final class Hotkey {
     private var ref: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private let action: () -> Void
+    private(set) var shortcut: Shortcut
 
-    /// Default ⌃⌥P (Bryce, 2026-11-02).
-    init(keyCode: Int = kVK_ANSI_P, modifiers: Int = controlKey | optionKey, action: @escaping () -> Void) {
+    init(_ shortcut: Shortcut, action: @escaping () -> Void) {
         self.action = action
+        self.shortcut = shortcut
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(GetApplicationEventTarget(), { _, _, userData in
@@ -103,12 +105,52 @@ final class Hotkey {
             Unmanaged<Hotkey>.fromOpaque(userData).takeUnretainedValue().action()
             return noErr
         }, 1, &spec, selfPtr, &handler)
+        _ = register(shortcut)
+    }
+
+    private func register(_ s: Shortcut) -> Bool {
+        unregister()
         let id = EventHotKeyID(signature: OSType(0x504F4320) /* 'POC ' */, id: 1)
-        RegisterEventHotKey(UInt32(keyCode), UInt32(modifiers), id, GetApplicationEventTarget(), 0, &ref)
+        return RegisterEventHotKey(UInt32(s.keyCode), Self.carbonModifiers(s.modifiers), id, GetApplicationEventTarget(), 0, &ref) == noErr
+    }
+
+    private func unregister() {
+        if let ref { UnregisterEventHotKey(ref) }
+        ref = nil
+    }
+
+    /// Switch to a new shortcut live. If macOS refuses it (another app owns it), the old one is restored and this returns false.
+    @discardableResult
+    func update(_ s: Shortcut) -> Bool {
+        if register(s) { shortcut = s; return true }
+        _ = register(shortcut)
+        return false
+    }
+
+    /// Stop listening while the recorder is open, so pressing the current shortcut records it instead of firing it.
+    func suspend() { unregister() }
+    func resume() { _ = register(shortcut) }
+
+    static func carbonModifiers(_ m: Shortcut.Modifiers) -> UInt32 {
+        var c = 0
+        if m.contains(.control) { c |= controlKey }
+        if m.contains(.option) { c |= optionKey }
+        if m.contains(.command) { c |= cmdKey }
+        if m.contains(.shift) { c |= shiftKey }
+        return UInt32(c)
+    }
+
+    static func modifiers(from flags: NSEvent.ModifierFlags) -> Shortcut.Modifiers {
+        var m: Shortcut.Modifiers = []
+        if flags.contains(.control) { m.insert(.control) }
+        if flags.contains(.option) { m.insert(.option) }
+        if flags.contains(.command) { m.insert(.command) }
+        if flags.contains(.shift) { m.insert(.shift) }
+        return m
     }
 
     deinit {
-        if let ref { UnregisterEventHotKey(ref) }
+        unregister()
         if let handler { RemoveEventHandler(handler) }
     }
 }
