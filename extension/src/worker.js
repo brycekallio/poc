@@ -79,11 +79,6 @@ const handlers = {
     return { reader, questions };
   },
 
-  async rewrite({ draft, answers, host, reader }) {
-    const { prompt, techniques, unverified } = await rewrite({ config: await settings(), draft, answers, host, reader });
-    return { prompt, techniques, unverified };
-  },
-
   async listModels({ config }) {
     return { models: await listModels(config) };
   },
