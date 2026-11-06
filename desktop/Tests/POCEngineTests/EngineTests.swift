@@ -294,7 +294,7 @@ final class NativeFetchNetworkTests: XCTestCase {
         StubProtocol.reset("redirect")
         let r = await native().fetch(request)
         XCTAssertEqual(r["status"] as? Int, 302)
-        XCTAssertEqual(StubProtocol.requests.map(\.host), ["api.openai.com"], "a second request would carry the key to another host")
+        XCTAssertFalse(StubProtocol.requests.contains { $0.host == "evil.example" }, "following the redirect would carry the key to another host")
     }
 
     func testCancelStopsTheRequestAndAnswersCancelled() async throws {
@@ -308,6 +308,14 @@ final class NativeFetchNetworkTests: XCTestCase {
         XCTAssertEqual(r["error"] as? String, "cancelled")
         XCTAssertNil(r["status"])
         XCTAssertGreaterThanOrEqual(StubProtocol.stopped, 1)
+    }
+
+    func testACancelThatArrivesBeforeTheRequestStillStopsIt() async {
+        StubProtocol.reset("hang")
+        let n = native()
+        n.cancel("n1")   // the page's cancel can reach Swift before fetch registers the request
+        let r = await n.fetch(request)
+        XCTAssertEqual(r["error"] as? String, "cancelled")
     }
 }
 

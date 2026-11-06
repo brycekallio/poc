@@ -175,6 +175,7 @@ public final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
     private let session: URLSession
     private let lock = NSLock()
     private var inFlight: [String: Task<[String: Any], Never>] = [:]
+    private var cancelledEarly: Set<String> = []   // cancels that arrived before their request registered
 
     public override init() { session = Self.makeSession(.ephemeral); super.init() }
     /// Tests pass a configuration whose `protocolClasses` stubs the network.
@@ -187,7 +188,7 @@ public final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
 
     /// Stops the request with this id, if it is still running (the page aborted or timed out).
     func cancel(_ id: String) {
-        lock.lock(); let task = inFlight[id]; lock.unlock()
+        lock.lock(); let task = inFlight[id]; if task == nil { cancelledEarly.insert(id) }; lock.unlock()
         task?.cancel()
     }
 
@@ -211,7 +212,10 @@ public final class NativeFetch: NSObject, WKScriptMessageHandlerWithReply {
             }
         }
         let id = m["id"] as? String
-        if let id { lock.lock(); inFlight[id] = task; lock.unlock() }
+        if let id {
+            lock.lock(); inFlight[id] = task; let early = cancelledEarly.remove(id) != nil; lock.unlock()
+            if early { task.cancel() }
+        }
         let result = await task.value
         if let id { lock.lock(); inFlight[id] = nil; lock.unlock() }
         return result

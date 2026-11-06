@@ -34,15 +34,18 @@ let nativeSeq = 0;
 async function nativeFetch(url, init, signal) {
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   const id = `n${++nativeSeq}`;
-  const aborted = new Promise((_, reject) =>
-    signal?.addEventListener("abort", () => {
+  let onAbort;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => {
       bridge().postMessage({ cancel: id }); // stop the request in Swift too, not just the waiting here
       reject(new DOMException("Aborted", "AbortError"));
-    }, { once: true }));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
   const reply = await Promise.race([
     bridge().postMessage({ id, url: String(url), method: init.method ?? "GET", headers: init.headers ?? {}, body: init.body ?? null }),
     aborted,
-  ]);
+  ]).finally(() => signal?.removeEventListener("abort", onAbort));
   if (!reply || reply.error) throw new TypeError("network"); // what fetch itself throws when it cannot connect
   return new Response(reply.body, { status: reply.status, headers: reply.headers });
 }
