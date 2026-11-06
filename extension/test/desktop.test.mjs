@@ -162,3 +162,31 @@ test("reply shapes: call 1 is { ok, reader, questions }; call 2 carries the rewr
   assert.ok(!("diagnosis" in out) && !("config" in out) && !("apiKey" in out));
   assert.ok(!JSON.stringify(out).includes("sk-secret"));
 });
+
+test("OpenAI goes through the native bridge (its replies carry no CORS headers); other hosts do not", async () => {
+  const sent = [];
+  globalThis.webkit = { messageHandlers: { net: { postMessage: async (m) => { sent.push(m); return { status: 401, headers: { "content-type": "application/json" }, body: "{}" }; } } } };
+  try {
+    stub(chat(diagnosis));
+    const out = await diagnoseDraft({ config: { provider: "openai", apiKey: "sk-x", model: "m" }, draft, host: "Claude, an AI chat app" });
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].url, "https://api.openai.com/v1/chat/completions");
+    assert.equal(out.error.code, "bad-key"); // the 401 is readable
+    const calls = stub(chat(diagnosis));
+    await diagnoseDraft({ config: { provider: "ollama", apiKey: "", model: "m" }, draft, host: "Claude, an AI chat app" });
+    assert.equal(sent.length, 1); // local server: plain fetch
+    assert.equal(calls.length, 1);
+  } finally { delete globalThis.webkit; }
+});
+
+test("aborting a native OpenAI call tells Swift to cancel that request", async () => {
+  const sent = [];
+  globalThis.webkit = { messageHandlers: { net: { postMessage: (m) => { sent.push(m); return new Promise(() => {}); } } } }; // never answers
+  try {
+    const run = diagnoseDraft({ config: { provider: "openai", apiKey: "sk-x", model: "m" }, draft, host: "Claude, an AI chat app", timeoutMs: 50 });
+    const out = await run;
+    assert.equal(out.error.code, "timeout");
+    assert.equal(sent.length, 2);
+    assert.equal(sent[1].cancel, sent[0].id);
+  } finally { delete globalThis.webkit; }
+});
