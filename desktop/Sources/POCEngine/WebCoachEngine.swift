@@ -87,7 +87,9 @@ public final class WebCoachEngine: NSObject, CoachEngine, WKNavigationDelegate {
             guard let reply = raw as? [String: Any] else { return .failure(Self.malformed) }
             if reply["ok"] as? Bool == true { return .success(reply) }
             let e = reply["error"] as? [String: Any]
-            return .failure(CoachFailure(code: e?["code"] as? String ?? "unknown", message: e?["message"] as? String ?? "Something went wrong."))
+            let key = (args["config"] as? [String: Any])?["apiKey"] as? String
+            return .failure(CoachFailure(code: e?["code"] as? String ?? "unknown", message: e?["message"] as? String ?? "Something went wrong.")
+                .redacting(key))
         } catch {
             return .failure(CoachFailure(code: "engine", message: "POC's coaching engine stopped. Try again."))
         }
