@@ -1,0 +1,73 @@
+@font-face { font-family: "Geist"; src: url("fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --ground: #fafafa; --field: #f2f4f7; --ink: #0a0a0a; --dark: #141414; --paper: #fff;
+  --accent: #1d5fbf; --accent-hi: #6ea2f0; --grey: #5f6670; --grey-hi: #b4b4b4;
+  --m: clamp(20px, 4vw, 56px);
+  --gap: clamp(88px, 12vw, 200px);
+  --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 clamp(1rem, .95rem + .2vw, 1.125rem)/1.55 var(--font); -webkit-font-smoothing: antialiased; font-feature-settings: "tnum"; }
+img, video, svg { display: block; max-width: 100%; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.dark :focus-visible { outline-color: var(--accent-hi); }
+h1, h2, h3, p, ol, ul { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+
+.wrap { padding-inline: var(--m); max-width: 1680px; margin-inline: auto; }
+section { padding-block: var(--gap) ; }
+.dark { background: var(--dark); color: #fff; }
+.field { background: var(--field); }
+
+/* type: three sizes do the work */
+h1 { font-size: clamp(2.3rem, 4.4vw + .4rem, 4.75rem); line-height: 1; letter-spacing: -.04em; font-weight: 600; text-wrap: balance; }
+h2 { font-size: clamp(2rem, 3.4vw + .4rem, 3.75rem); line-height: 1.02; letter-spacing: -.035em; font-weight: 600; text-wrap: balance; max-width: 14ch; }
+h3 { font-size: 1.375rem; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; }
+.lede { font-size: clamp(1.125rem, 1rem + .5vw, 1.375rem); line-height: 1.45; max-width: 36ch; }
+.dark .soft { color: var(--grey-hi); }
+
+/* nav */
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 22px; }
+.nav ul { display: flex; gap: clamp(16px, 2.5vw, 36px); margin-left: auto; margin-right: 8px; font-size: .9375rem; }
+.nav ul a { text-decoration: none; padding-block: 8px; }
+.nav ul a:hover { color: var(--accent); }
+.wordmark { display: block; width: 76px; color: var(--ink); }
+.wordmark svg { width: 100%; height: auto; }
+.dark .wordmark { color: #fff; }
+
+/* buttons: flat, square-cornered, one fill */
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; background: var(--accent); color: #fff; font: 600 1rem/1 var(--font); text-decoration: none; border: 0; transition: transform .15s ease, background .15s ease; }
+.btn:hover { background: #174f9f; transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
+.btn.small { min-height: 40px; padding: 0 18px; font-size: .9375rem; }
+.link { font-weight: 600; text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 2px; }
+.link:hover { color: var(--accent); }
+.dark .link:hover { color: var(--accent-hi); }
+
+/* hero */
+.hero { padding-block: clamp(32px, 5vw, 72px) var(--gap); }
+.hero-grid { display: grid; gap: clamp(36px, 5vw, 80px); grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; }
+.hero h1 { margin-bottom: 28px; }
+.hero .lede { margin-bottom: 36px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; }
+.hero-note { margin-top: 28px; color: var(--grey); font-size: .9375rem; max-width: 44ch; }
+.demo { background: var(--dark); aspect-ratio: 16 / 9; }
+.demo video { width: 100%; height: 100%; object-fit: cover; }
+.demo-cap { margin-top: 14px; color: var(--grey); font-size: .9375rem; }
+
+@media (max-width: 880px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .nav ul { display: none; }
+  .nav .btn { margin-left: auto; }
+}
+
+/* entrance: content is visible unless JS opts in */
+.js .rise { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); transition-delay: calc(var(--i, 0) * 80ms); }
+.js .rise.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .js .rise { opacity: 1; transform: none; transition: none; }
+  .btn { transition: none; }
+}
