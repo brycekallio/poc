@@ -99,8 +99,12 @@ function anthropicClient(apiKey, { maxRetries = 1 } = {}) {
   });
 }
 
-// Unknown ids (a model typed in by hand, say) get the fallback; the API is the judge.
-const hasFallback = (model) => MODELS.find((m) => m.id === model)?.fallback !== false;
+// Only ids we ship and have checked get the beta. A hand-typed or future id gets none,
+// so a retired beta or an unsupported model cannot turn every call into a 400.
+const hasFallback = (model) => {
+  const known = MODELS.find((m) => m.id === model);
+  return !!known && known.fallback !== false;
+};
 
 // ── OpenAI-style servers ──────────────────────────────────────────────
 
