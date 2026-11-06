@@ -94,7 +94,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showHome(reloadSettings: Bool = false) {
         guard HomeStatus.shouldShowWindow(selfTest: ProcessInfo.processInfo.environment["POC_SELFTEST"]) else { return }
         home.show(reloadSettings: reloadSettings)
-        Debug.log("home window shown; title=\(NSApp.windows.first { $0.isVisible }?.title ?? "none")")
+        Debug.log("home window shown; visible windows=\(NSApp.windows.filter { $0.isVisible && $0.title.hasPrefix("POC") }.map(\.title))")
+        // Evidence hook: close it shortly after showing, so a second `open` can prove it comes back.
+        if ProcessInfo.processInfo.environment["POC_DEBUG_AUTOCLOSE"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.home.hide(); Debug.log("debug: window closed") }
+        }
     }
 
     // MARK: Menu bar

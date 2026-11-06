@@ -219,6 +219,8 @@ final class HomeWindowController {
         window?.orderFrontRegardless()
     }
 
+    func hide() { window?.orderOut(nil) }
+
     /// Light and dark PNGs of the window for the screenshots folder (never shown on screen).
     func render(to name: String, hasKeyState: Bool) {
         let host = NSHostingView(rootView: HomeView(model: model))
