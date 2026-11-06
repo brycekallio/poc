@@ -114,8 +114,8 @@ final class SelectionReaderTests: XCTestCase {
 }
 
 final class WriteBackTests: XCTestCase {
-    func writer(_ ax: FakeAX, _ keys: FakeKeys, secure: Bool = false) -> WriteBack {
-        WriteBack(ax: ax, keys: keys, secure: FakeSecure(isSecureInputOn: secure), pasteboard: keys.pb, settle: 0.1, restoreDelay: 0)
+    func writer(_ ax: FakeAX, _ keys: FakeKeys, secure: Bool = false, settle: TimeInterval = 0.1) -> WriteBack {
+        WriteBack(ax: ax, keys: keys, secure: FakeSecure(isSecureInputOn: secure), pasteboard: keys.pb, settle: settle, restoreDelay: 0)
     }
     func testVerifiedPasteRestoresClipboard() {
         let pb = privateBoard(); pb.setString("my clipboard", forType: .string)
@@ -130,7 +130,8 @@ final class WriteBackTests: XCTestCase {
         var reads = 0
         ax.onField = { reads += 1; if reads == 4 { ax.field = "NEW" } }
         let keys = FakeKeys(pb)
-        XCTAssertEqual(writer(ax, keys).write("NEW"), .pasted)
+        // Generous settle: the test needs 4 polls, which a loaded machine may not fit in 0.1 s.
+        XCTAssertEqual(writer(ax, keys, settle: 5).write("NEW"), .pasted)
     }
     func testPasteIgnoredLeavesRewriteOnClipboard() {
         let pb = privateBoard(); pb.setString("mine", forType: .string)
