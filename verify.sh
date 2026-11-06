@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # One command for "does everything still pass": extension tests, desktop tests, desktop compiles.
+# `./verify.sh --e2e` also runs the real coach loop against local Ollama (skips if it is not running; E2E_MODEL overrides the model).
 # (Building the signed POC.app is desktop/build.sh; it needs a normal terminal because codesign
 # refuses files stamped by sandboxed tools.)
 set -euo pipefail
