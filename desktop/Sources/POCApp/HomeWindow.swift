@@ -15,6 +15,7 @@ final class HomeModel: ObservableObject {
     @Published var recording = false
     @Published var shortcutNote = ""
     @Published var shortcutNoteIsError = false
+    @Published var shortcutState: ShortcutState = .working
 
     let settings: CoachSettings
     /// One cheap real call with the form's config (no Keychain write). Provided by the app delegate.
@@ -82,10 +83,12 @@ final class HomeModel: ObservableObject {
     /// Validate, apply live, then save. A rejected shortcut keeps the recorder open so the user can try again.
     func capture(_ s: Shortcut) {
         if let p = s.problem { shortcutNote = Shortcut.message(for: p); shortcutNoteIsError = true; return }
-        stopRecording()
+        // Try it while still recording; only stop once macOS accepts it, so a refusal lets the user try again at once.
         guard onShortcutChange(s) else {
             shortcutNote = "\(s.display) is already used by another app. Try another."; shortcutNoteIsError = true; return
         }
+        shortcutState = .working
+        stopRecording()
         shortcutStore.set(s)
         shortcut = s
         shortcutNote = "Saved. Works right now."; shortcutNoteIsError = false
@@ -97,6 +100,7 @@ final class HomeModel: ObservableObject {
             shortcutNote = "\(Shortcut.default.display) is already used by another app."; shortcutNoteIsError = true; return
         }
         shortcutStore.reset()
+        shortcutState = .working
         shortcut = .default
         shortcutNote = "Back to \(Shortcut.default.display)."; shortcutNoteIsError = false
     }
@@ -217,6 +221,8 @@ struct HomeView: View {
             if !model.shortcutNote.isEmpty {
                 Text(model.shortcutNote).font(Theme.font(12)).foregroundColor(model.shortcutNoteIsError ? t.negative : t.muted)
                     .padding(.leading, 106)
+            } else if let taken = model.shortcutState.note(for: model.shortcut) {
+                Text(taken).font(Theme.font(12)).foregroundColor(t.negative).padding(.leading, 106)
             }
             if model.showProblems {
                 ForEach(model.form.problems, id: \.self) { Text(SettingsForm.message(for: $0)).font(Theme.font(12)).foregroundColor(t.negative) }

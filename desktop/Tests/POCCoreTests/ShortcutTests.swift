@@ -50,4 +50,11 @@ final class ShortcutTests: XCTestCase {
         d.set(35, forKey: "shortcut.keyCode"); d.set(0, forKey: "shortcut.modifiers")
         XCTAssertEqual(ShortcutStore(defaults: d).current, .default)
     }
+
+    func testFailedRegistrationYieldsTakenState() {
+        XCTAssertEqual(ShortcutState.after(registered: false), .taken)
+        XCTAssertEqual(ShortcutState.after(registered: true), .working)
+        XCTAssertEqual(ShortcutState.taken.note(for: .default), "⌃⌥P is taken by another app — record a different shortcut.")
+        XCTAssertNil(ShortcutState.working.note(for: .default))
+    }
 }

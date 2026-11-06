@@ -28,9 +28,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         m.onSaved = { [weak self] in self?.refreshModelItem() }
-        m.onRecording = { [weak self] on in on ? self?.hotkey?.suspend() : self?.hotkey?.resume() }
-        m.onShortcutChange = { [weak self] s in
-            guard let self, self.hotkey?.update(s) ?? true else { return false }
+        m.shortcutState = hotkey?.state ?? .working
+        m.onRecording = { [weak self, weak m] on in
+            on ? self?.hotkey?.suspend() : self?.hotkey?.resume()
+            if !on, let state = self?.hotkey?.state { m?.shortcutState = state; self?.refreshCoachItem(self?.shortcutStore.current ?? .default) }
+        }
+        m.onShortcutChange = { [weak self, weak m] s in
+            guard let self, self.hotkey?.update(s) ?? true else {
+                if m?.recording == true { self?.hotkey?.suspend() }   // update() put the old one back; keep it off while the recorder is open
+                return false
+            }
             self.refreshCoachItem(s)
             return true
         }
@@ -57,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Theme.registerFonts()
         buildMenu()
         hotkey = Hotkey(shortcutStore.current) { [weak self] in self?.trigger() }
+        refreshCoachItem(shortcutStore.current)
         panel.onUse = { [weak self] in self?.use() }
         panel.onReturn = { [weak self] in self?.pressReturn() }
         panel.onDigit = { [weak self] n in self?.pickOption(n) }
@@ -148,6 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The menu shows the current shortcut next to "Coach the selected text" (letters and digits only; other keys show none).
     fileprivate func refreshCoachItem(_ s: Shortcut) {
+        // A shortcut macOS refused doesn't work, so the menu must not show it as if it did.
+        guard hotkey?.state ?? .working == .working else { coachItem.keyEquivalent = ""; coachItem.keyEquivalentModifierMask = []; return }
         coachItem.keyEquivalent = s.menuCharacter ?? ""
         var mask: NSEvent.ModifierFlags = []
         if s.modifiers.contains(.control) { mask.insert(.control) }

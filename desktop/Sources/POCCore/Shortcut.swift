@@ -70,6 +70,16 @@ public struct Shortcut: Equatable {
     ]
 }
 
+/// Whether macOS actually gave POC the shortcut. A saved shortcut can be claimed by another app at launch.
+public enum ShortcutState: Equatable {
+    case working, taken
+    public static func after(registered: Bool) -> ShortcutState { registered ? .working : .taken }
+    /// The one line the home window shows when the shortcut doesn't work; nil when all is well.
+    public func note(for s: Shortcut) -> String? {
+        self == .taken ? "\(s.display) is taken by another app — record a different shortcut." : nil
+    }
+}
+
 /// Remembers the shortcut in UserDefaults. A missing or invalid stored value falls back to ⌃⌥P.
 public struct ShortcutStore {
     private let defaults: UserDefaults

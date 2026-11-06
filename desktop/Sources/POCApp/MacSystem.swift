@@ -94,6 +94,9 @@ final class Hotkey {
     private var handler: EventHandlerRef?
     private let action: () -> Void
     private(set) var shortcut: Shortcut
+    /// Whether macOS accepted the current registration (false if another app already owns the shortcut).
+    private(set) var isRegistered = false
+    var state: ShortcutState { .after(registered: isRegistered) }
 
     init(_ shortcut: Shortcut, action: @escaping () -> Void) {
         self.action = action
@@ -111,12 +114,14 @@ final class Hotkey {
     private func register(_ s: Shortcut) -> Bool {
         unregister()
         let id = EventHotKeyID(signature: OSType(0x504F4320) /* 'POC ' */, id: 1)
-        return RegisterEventHotKey(UInt32(s.keyCode), Self.carbonModifiers(s.modifiers), id, GetApplicationEventTarget(), 0, &ref) == noErr
+        isRegistered = RegisterEventHotKey(UInt32(s.keyCode), Self.carbonModifiers(s.modifiers), id, GetApplicationEventTarget(), 0, &ref) == noErr
+        return isRegistered
     }
 
     private func unregister() {
         if let ref { UnregisterEventHotKey(ref) }
         ref = nil
+        isRegistered = false
     }
 
     /// Switch to a new shortcut live. If macOS refuses it (another app owns it), the old one is restored and this returns false.
