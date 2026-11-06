@@ -198,6 +198,42 @@ final class WebEngineTests: XCTestCase {
     }
 }
 
+/// Real requests from the web view's origin (app://poc) to each hosted provider, carrying a deliberately
+/// invalid key. A 401 the page can read (-> "bad-key") proves the CORS preflight passed; a blocked
+/// preflight would surface as "network". No real key, no billable call. Skipped when offline.
+@MainActor
+final class HostedProviderTests: XCTestCase {
+    private static let fake = "sk-invalid-poc-t7"
+    private static let web = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Resources/web")
+
+    private func probe(_ config: CoachConfig, host: String) async throws {
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: Self.web.appendingPathComponent("engine.js").path), "engine.js missing")
+        var reachable = false
+        if let url = URL(string: "https://\(host)/"), let (_, r) = try? await URLSession.shared.data(from: url), r is HTTPURLResponse { reachable = true }
+        try XCTSkipUnless(reachable, "offline: cannot reach \(host)")
+        let result = await WebCoachEngine(directory: Self.web).diagnose(config: config, draft: "write a summary of the q3 report", host: "Claude, an AI chat app")
+        guard case let .failure(f) = result else { return XCTFail("an invalid key must not succeed") }
+        XCTAssertEqual(f.code, "bad-key", "\(config.provider): got \(f.code) / \(f.message)")
+        XCTAssertTrue(f.needsSettings)
+        XCTAssertFalse(f.message.contains(Self.fake))
+        XCTAssertFalse(String(describing: f).contains(Self.fake))
+    }
+
+    func testAnthropicRejectsABadKeyReadably() async throws {
+        try await probe(CoachConfig(provider: "anthropic", model: "claude-sonnet-5-5", apiKey: Self.fake), host: "api.anthropic.com")
+    }
+    func testOpenAIRejectsABadKeyReadably() async throws {
+        try await probe(CoachConfig(provider: "openai", model: "gpt-5-mini", apiKey: Self.fake), host: "api.openai.com")
+    }
+    func testGeminiRejectsABadKeyReadably() async throws {
+        try await probe(CoachConfig(provider: "gemini", model: "gemini-2.5-flash", apiKey: Self.fake), host: "generativelanguage.googleapis.com")
+    }
+    func testOpenAICompatibleRejectsABadKeyReadably() async throws {
+        try await probe(CoachConfig(provider: "custom", model: "llama-3.3-70b-versatile", apiKey: Self.fake, baseUrl: "https://api.groq.com/openai/v1"), host: "api.groq.com")
+    }
+}
+
 final class PartialLog: @unchecked Sendable {
     private let lock = NSLock(); private var values: [String] = []
     func add(_ s: String) { lock.lock(); values.append(s); lock.unlock() }
