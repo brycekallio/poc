@@ -9,12 +9,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# iCloud Desktop & Documents sync stamps files with extended attributes that codesign rejects
-# ("detritus not allowed"). A .nosync folder is ignored by iCloud; dist is a symlink to it.
-VERSION=0.2.0
-if [ ! -L dist ]; then rm -rf dist; mkdir -p dist.nosync; ln -s dist.nosync dist; fi
-APP=dist/POC.app
+# iCloud Desktop & Documents sync re-stamps files under Documents with FinderInfo/fileprovider attributes
+# that codesign rejects ("detritus not allowed"); even .nosync does not stop it. So the app is assembled and
+# signed OUTSIDE iCloud, at ~/Applications/POC.app, and that is the only copy to open. dist is a symlink there.
+VERSION=0.3.0
+INSTALL="${POC_INSTALL_DIR:-$HOME/Applications}"
+mkdir -p "$INSTALL"
+APP="$INSTALL/POC.app"
+# Quit a running POC first (the old one may have been up for days) so the new build is the one that opens.
+if pgrep -x POC >/dev/null; then pkill -x POC || true; sleep 1; fi
 rm -rf "$APP"
+rm -rf dist dist.nosync; ln -s "$INSTALL" dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fonts"
 
 swift build -c release --arch arm64
@@ -88,4 +93,6 @@ else
   echo "  signed ad hoc: Accessibility must be re-granted after every rebuild. Run scripts/make-dev-cert.sh once to fix that."
 fi
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
-echo "  built $APP"
+codesign --verify --strict -v "$APP" 2>&1 | sed 's/^/  /'
+xattr -p com.apple.quarantine "$APP" >/dev/null 2>&1 && echo "  WARNING: quarantine flag present" || echo "  no quarantine flag"
+echo "  built $APP  (open it with: open \"$APP\")"
