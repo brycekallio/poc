@@ -1,5 +1,6 @@
 // content.js's line to the worker: one reply (send) or a stream over a port (streamRewrite).
 // Split out so test/bridge.test.mjs can drive it with a fake `chrome`; content.js itself needs a DOM.
+import { orphanedFailure, unknownFailure } from "./session.js";
 
 // The worker answers { ok, ...result } or { ok: false, error }. Failures are
 // thrown as { code, message } for the session to show.
@@ -9,9 +10,9 @@ export async function send(msg) {
     res = await chrome.runtime.sendMessage(msg);
   } catch {
     // The extension was reloaded under this tab; this content script is orphaned.
-    throw { code: "orphaned", message: "P.O.C was updated. Reload this page to use it." };
+    throw orphanedFailure();
   }
-  if (!res?.ok) throw res?.error ?? { code: "unknown", message: "Something went wrong." };
+  if (!res?.ok) throw res?.error ?? unknownFailure();
   return res;
 }
 
@@ -23,7 +24,7 @@ export function streamRewrite(msg, onPartial) {
     try {
       port = chrome.runtime.connect({ name: "rewrite" });
     } catch {
-      return reject({ code: "orphaned", message: "P.O.C was updated. Reload this page to use it." });
+      return reject(orphanedFailure());
     }
     let finished = false;
     port.onMessage.addListener((m) => {
@@ -31,7 +32,7 @@ export function streamRewrite(msg, onPartial) {
       finished = true;
       port.disconnect();
       if (m.ok) resolve(m);
-      else reject(m.error ?? { code: "unknown", message: "Something went wrong." });
+      else reject(m.error ?? unknownFailure());
     });
     port.onDisconnect.addListener(() => {
       if (!finished) reject({ code: "orphaned", message: "The connection to P.O.C dropped. Try again, or reload this page." });
