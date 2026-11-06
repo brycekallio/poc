@@ -22,7 +22,7 @@ section { padding-block: var(--gap) ; }
 .field { background: var(--field); }
 
 /* type: three sizes do the work */
-h1 { font-size: clamp(2.3rem, 4.4vw + .4rem, 4.75rem); line-height: 1; letter-spacing: -.04em; font-weight: 600; text-wrap: balance; }
+h1 { font-size: clamp(2.2rem, 3.9vw + .3rem, 4.5rem); line-height: 1; letter-spacing: -.04em; font-weight: 600; text-wrap: balance; }
 h2 { font-size: clamp(2rem, 3.4vw + .4rem, 3.75rem); line-height: 1.02; letter-spacing: -.035em; font-weight: 600; text-wrap: balance; max-width: 14ch; }
 h3 { font-size: 1.375rem; line-height: 1.2; letter-spacing: -.02em; font-weight: 600; }
 .lede { font-size: clamp(1.125rem, 1rem + .5vw, 1.375rem); line-height: 1.45; max-width: 36ch; }
@@ -48,7 +48,7 @@ h3 { font-size: 1.375rem; line-height: 1.2; letter-spacing: -.02em; font-weight:
 
 /* hero */
 .hero { padding-block: clamp(32px, 5vw, 72px) var(--gap); }
-.hero-grid { display: grid; gap: clamp(36px, 5vw, 80px); grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; }
+.hero-grid { display: grid; gap: clamp(36px, 5vw, 80px); grid-template-columns: minmax(0, 6fr) minmax(0, 7fr); align-items: center; }
 .hero h1 { margin-bottom: 28px; }
 .hero .lede { margin-bottom: 36px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; }
