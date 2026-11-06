@@ -72,11 +72,12 @@ async function injectIntoOpenTabs() {
 
 const handlers = {
   async diagnose({ draft, host }) {
-    const { reader, diagnosis, questions } = await diagnose({ config: await settings(), draft, host });
-    // Logged here, in the worker's console, and nowhere the page can see it.
-    // This is what to read when the questions come back generic.
-    console.debug("[POC] reader", reader, "diagnosis", diagnosis, "questions", questions);
-    return { reader, questions };
+    // The diagnosis stays here: it is logged in the worker's console and nowhere
+    // the page can see it. Read it when the questions come back generic. Whatever
+    // else call 1 returns goes through.
+    const { diagnosis, ...result } = await diagnose({ config: await settings(), draft, host });
+    console.debug("[POC] reader", result.reader, "diagnosis", diagnosis, "questions", result.questions);
+    return result;
   },
 
   async listModels({ config }) {
@@ -105,11 +106,11 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener(async ({ draft, answers, host, reader }) => {
     const say = (msg) => { try { port.postMessage(msg); } catch { /* the tab went away */ } };
     try {
-      const { prompt, techniques, unverified } = await rewrite({
+      const result = await rewrite({
         config: await settings(), draft, answers, host, reader,
         onPartial: (text) => say({ partial: text }),
       });
-      say({ ok: true, prompt, techniques, unverified });
+      say({ ok: true, ...result });
     } catch (err) {
       say({ ok: false, error: describeError(err) });
     }
