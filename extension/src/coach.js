@@ -254,7 +254,7 @@ export function checkRewrite(out, draft, reader = "ai", answered = "") {
 
   // The must-nots, as far as code can see them.
   // Smaller models echo the instruction, or invent the deadline a message "should" have.
-  const echo = new RegExp(`rewrite this draft|${AI_CHAT}`, "i");
+  const echo = new RegExp(`rewrite this draft|${AI_CHAT} (site|app)\\b`, "i"); // the label, not "an AI chatbot"
   if (echo.test(prompt) && !echo.test(draft))
     problems.push("Return only the rewritten text, not the instruction.");
   const invented = (prompt.match(WHEN) ?? []).filter((w) => !new RegExp(`\\b${w}\\b`, "i").test(`${draft} ${answered}`));

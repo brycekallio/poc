@@ -99,3 +99,12 @@ test("a rewrite may not echo the instruction or invent a date", () => {
   // A date the user gave, in the draft or an answer, stands.
   assert.deepEqual(checkRewrite({ prompt: message, techniques: decidedMessage() }, email, "person", dates), []);
 });
+
+test("the host-label echo check catches the label, not prompts about chatbots", () => {
+  const echoed = (p) => checkRewrite({ prompt: p, techniques: decided() }, draft, "ai", "A: Monday's review")
+    .includes("Return only the rewritten text, not the instruction.");
+  assert.equal(echoed(`${prompt} Claude, an AI chat site.`), true);
+  assert.equal(echoed(`${prompt} Claude, an AI chat app.`), true);
+  assert.equal(echoed(`${prompt} Pitch it as an AI chatbot startup.`), false);
+  assert.equal(echoed(`${prompt} Compare it with an AI chat assistant.`), false);
+});
