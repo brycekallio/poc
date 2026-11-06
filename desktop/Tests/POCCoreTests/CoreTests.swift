@@ -187,3 +187,20 @@ final class PanelPlacementTests: XCTestCase {
         XCTAssertEqual(p.x, 1500)
     }
 }
+
+final class CoachFailureRedactionTests: XCTestCase {
+    func testKeyIsScrubbedFromMessage() {
+        let key = "sk-ant-api03-SECRET+/=xyz"
+        let f = CoachFailure(code: "bad-key", message: "Invalid key \(key); encoded \(key.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!)")
+        let r = f.redacting(key)
+        XCTAssertFalse(r.message.contains(key))
+        XCTAssertFalse(r.message.contains("SECRET"))
+        XCTAssertEqual(r.code, "bad-key")
+        XCTAssertTrue(r.message.contains("[key hidden]"))
+    }
+    func testNoKeyLeavesMessageAlone() {
+        let f = CoachFailure(code: "local-down", message: "Ollama is not running.")
+        XCTAssertEqual(f.redacting(nil), f)
+        XCTAssertEqual(f.redacting(""), f)
+    }
+}

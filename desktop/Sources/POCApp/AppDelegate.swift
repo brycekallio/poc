@@ -15,6 +15,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modelItem: NSMenuItem!
 
     private let settings = CoachSettings()
+    private lazy var home: HomeWindowController = {
+        let m = HomeModel(settings: settings)
+        m.runTest = { [weak self] config in
+            guard let self else { return .failure(CoachFailure(code: "gone", message: "POC is closing.")) }
+            // One cheap real call: the first coaching call on a tiny draft. Proves address, key and model together.
+            switch await self.engine.diagnose(config: config, draft: "write an email to my team", host: "") {
+            case let .success(d): return .success(d.questions.count)
+            case let .failure(f): return .failure(f)
+            }
+        }
+        m.onSaved = { [weak self] in self?.refreshModelItem() }
+        return HomeWindowController(model: m)
+    }()
     /// The coach: the extension's JS in a hidden web view. Started at launch so the first press is not slow.
     private lazy var engine = WebCoachEngine(directory: Self.webDirectory)
 
@@ -61,7 +74,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             renderCards(); NSApp.terminate(nil)   // offscreen PNGs of every card step, nothing shown
         } else if ProcessInfo.processInfo.environment["POC_SELFTEST"] == "coach" {
             Task { await selfTest() }   // no Accessibility dialog, no hotkey use: just the coach
-        } else if !Permissions.accessibilityGranted { Permissions.promptAccessibility() }
+        } else if ProcessInfo.processInfo.environment["POC_SELFTEST"] == "home" {
+            renderHome(); NSApp.terminate(nil)
+        } else {
+            // Opening the app must visibly do something: show the window (menu-bar-only apps have no Dock icon,
+            // and on a notched Mac the menu-bar icon can be hidden). The Accessibility prompt follows on its own.
+            showHome()
+            if !Permissions.accessibilityGranted { Permissions.promptAccessibility() }
+        }
+    }
+
+    /// Double-clicking POC while it is already running lands here (and `open` a second time).
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Debug.log("reopen requested; visible=\(flag)")
+        showHome()
+        return true
+    }
+
+    private func showHome(reloadSettings: Bool = false) {
+        guard HomeStatus.shouldShowWindow(selfTest: ProcessInfo.processInfo.environment["POC_SELFTEST"]) else { return }
+        home.show(reloadSettings: reloadSettings)
+        Debug.log("home window shown; visible windows=\(NSApp.windows.filter { $0.isVisible && $0.title.hasPrefix("POC") }.map(\.title))")
+        // Evidence hook: close it shortly after showing, so a second `open` can prove it comes back.
+        if ProcessInfo.processInfo.environment["POC_DEBUG_AUTOCLOSE"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.home.hide(); Debug.log("debug: window closed") }
+        }
     }
 
     // MARK: Menu bar
@@ -79,7 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         modelItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         modelItem.isEnabled = false
         menu.addItem(modelItem)
-        let prefs = NSMenuItem(title: "Model settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let about = NSMenuItem(title: "Open POC window", action: #selector(openHome), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+        let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         prefs.target = self
         menu.addItem(prefs)
         menu.addItem(.separator())
@@ -103,11 +143,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         modelItem.title = "Model: \(p?.name.components(separatedBy: " (").first ?? settings.provider) · \(model.isEmpty ? "automatic" : model)"
     }
 
+    @objc private func openHome() { showHome() }
+
     @objc private func openSettings() {
         // The dialog takes the keyboard, so the selection in the other app is gone: Use will copy.
         if panel.isVisible { markSelectionLost() }
-        SettingsDialog.run(settings: settings)
-        refreshModelItem()
+        showHome(reloadSettings: true)
     }
 
     fileprivate func refreshAccessItem() {
@@ -277,6 +318,20 @@ extension AppDelegate {
 }
 
 extension AppDelegate {
+    /// POC_SELFTEST=home: PNGs of the home window with a throwaway settings store, never on screen.
+    fileprivate func renderHome() {
+        let scratch = CoachSettings(defaults: UserDefaults(suiteName: "poc.render.\(UUID().uuidString)")!, secrets: InMemorySecretStore())
+        scratch.provider = "anthropic"
+        let m = HomeModel(settings: scratch)
+        m.accessibility = false
+        HomeWindowController(model: m).render(to: "home-needs-key", hasKeyState: false)
+        scratch.provider = "ollama"
+        let m2 = HomeModel(settings: scratch)
+        m2.accessibility = true
+        m2.status = "Connected. The model answered."
+        HomeWindowController(model: m2).render(to: "home-ok", hasKeyState: true)
+    }
+
     /// Renders each coaching step to POC_DEBUG_DIR as PNG, straight from the SwiftUI view (never on screen).
     fileprivate func renderCards() {
         let q = CoachQuestion(id: "a", quote: "make it good", question: "Is the summary for your manager or the engineers who wrote the code?",
