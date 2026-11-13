@@ -1,0 +1,36 @@
+<template>
+  <style>
+    @font-face { font-family: Geist; src: url("assets/fonts/Geist-SemiBold.woff2") format("woff2"); font-weight: 600; }
+    #root { position: absolute; inset: 0; pointer-events: none; }
+    .cg { position: absolute; left: 96px; margin: 0; font: 600 56px/68px Geist, sans-serif; letter-spacing: -0.01em; color: #949494; white-space: nowrap; }
+    .cg.low { top: 862px; }
+    .cg.high { top: 690px; }
+  </style>
+  <div id="root" data-composition-id="captions" data-width="1920" data-height="1080">
+    <p id="l1g1" class="cg low clip" data-start="0.1" data-duration="1.91" data-track-index="1"><span id="l1g1w0">Short,</span> <span id="l1g1w1">but</span> <span id="l1g1w2">cover</span> <span id="l1g1w3">everything?</span></p>
+    <p id="l1g2" class="cg low clip" data-start="2.03" data-duration="1.17" data-track-index="1"><span id="l1g2w0">Can’t</span> <span id="l1g2w1">have</span> <span id="l1g2w2">both.</span></p>
+    <p id="l2g1" class="cg low clip" data-start="3.22" data-duration="1.98" data-track-index="1"><span id="l2g1w0">P.O.C</span> <span id="l2g1w1">sits</span> <span id="l2g1w2">by</span> <span id="l2g1w3">your</span> <span id="l2g1w4">cursor.</span></p>
+    <p id="l2g2" class="cg low clip" data-start="5.22" data-duration="1.28" data-track-index="1"><span id="l2g2w0">Click</span> <span id="l2g2w1">Coach</span> <span id="l2g2w2">this</span> <span id="l2g2w3">draft.</span></p>
+    <p id="l3g1" class="cg high clip" data-start="6.52" data-duration="1.61" data-track-index="1"><span id="l3g1w0">It</span> <span id="l3g1w1">asks</span> <span id="l3g1w2">about</span> <span id="l3g1w3">your</span> <span id="l3g1w4">words:</span></p>
+    <p id="l3g2" class="cg high clip" data-start="8.15" data-duration="1.15" data-track-index="1"><span id="l3g2w0">who</span> <span id="l3g2w1">is</span> <span id="l3g2w2">this</span> <span id="l3g2w3">for?</span></p>
+    <p id="l4g1" class="cg high clip" data-start="9.32" data-duration="0.66" data-track-index="1"><span id="l4g1w0">Where</span> <span id="l4g1w1">your</span> <span id="l4g1w2">draft</span></p>
+    <p id="l4g2" class="cg high clip" data-start="10" data-duration="1.02" data-track-index="1"><span id="l4g2w0">contradicts</span> <span id="l4g2w1">itself,</span></p>
+    <p id="l4g3" class="cg high clip" data-start="11.04" data-duration="1.86" data-track-index="1"><span id="l4g3w0">you</span> <span id="l4g3w1">choose</span> <span id="l4g3w2">what</span> <span id="l4g3w3">you</span> <span id="l4g3w4">meant.</span></p>
+    <p id="l5g1" class="cg high clip" data-start="12.92" data-duration="1.26" data-track-index="1"><span id="l5g1w0">One</span> <span id="l5g1w1">more</span> <span id="l5g1w2">about</span> <span id="l5g1w3">the</span> <span id="l5g1w4">numbers,</span></p>
+    <p id="l5g2" class="cg high clip" data-start="14.2" data-duration="1.42" data-track-index="1"><span id="l5g2w0">then</span> <span id="l5g2w1">Rewrite.</span></p>
+    <p id="l6g1" class="cg high clip" data-start="16.32" data-duration="2.07" data-track-index="1"><span id="l6g1w0">Then</span> <span id="l6g1w1">it</span> <span id="l6g1w2">rewrites</span> <span id="l6g1w3">the</span> <span id="l6g1w4">prompt.</span></p>
+    <p id="l7g1" class="cg low clip" data-start="18.92" data-duration="1.49" data-track-index="1"><span id="l7g1w0">Right</span> <span id="l7g1w1">in</span> <span id="l7g1w2">the</span> <span id="l7g1w3">chat</span> <span id="l7g1w4">box.</span></p>
+    <p id="l7g2" class="cg low clip" data-start="20.43" data-duration="1.97" data-track-index="1"><span id="l7g2w0">Same</span> <span id="l7g2w1">request,</span> <span id="l7g2w2">now</span> <span id="l7g2w3">it’s</span> <span id="l7g2w4">clear.</span></p>
+  </div>
+  <script>
+    // Each word turns from grey to ink as it is said, the film's own title style.
+    const G = [{"id":"l1g1","end":2.01,"words":[0.1,0.56,0.8,1.01]},{"id":"l1g2","end":3.2,"words":[2.11,2.5,2.79]},{"id":"l2g1","end":5.2,"words":[3.3,3.53,4.06,4.13,4.53]},{"id":"l2g2","end":6.5,"words":[5.3,5.5,5.81,6.07]},{"id":"l3g1","end":8.13,"words":[6.6,6.64,6.9,7.23,7.49]},{"id":"l3g2","end":9.3,"words":[8.23,8.25,8.39,8.68]},{"id":"l4g1","end":9.98,"words":[9.4,9.5,9.82]},{"id":"l4g2","end":11.02,"words":[10.08,10.73]},{"id":"l4g3","end":12.9,"words":[11.12,11.32,11.74,12,12.17]},{"id":"l5g1","end":14.18,"words":[13,13.07,13.49,13.56,13.75]},{"id":"l5g2","end":15.62,"words":[14.28,14.56]},{"id":"l6g1","end":18.39,"words":[16.4,16.52,16.82,17.3,17.54]},{"id":"l7g1","end":20.41,"words":[19,19.22,19.49,19.57,19.85]},{"id":"l7g2","end":22.4,"words":[20.51,20.6,21.27,21.46,21.7]}];
+    const tl = gsap.timeline({ paused: true });
+    for (const g of G) {
+      g.words.forEach((t, k) => tl.fromTo("#" + g.id + "w" + k, { color: "#949494" }, { color: "#0a0a0a", duration: 0.12, ease: "power2.out" }, t));
+      tl.fromTo("#" + g.id + " span", { opacity: 1 }, { opacity: 0, duration: 0.14, ease: "power3.in" }, g.end - 0.16);
+    }
+    tl.to({}, { duration: 0.01 }, 29.58);
+    window.__timelines["captions"] = tl;
+  </script>
+</template>

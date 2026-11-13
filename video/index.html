@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-rc3p" id="root" data-composition-id="main" data-start="0" data-duration="29.6" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-puha"
+        id="film"
+        data-composition-id="film"
+        data-composition-src="compositions/film.html"
+        data-start="0"
+        data-duration="29.6"
+        data-track-index="1"
+        data-track-kind="graphics"
+        data-width="1920"
+        data-height="1080"
+      ></div>
+
+      <div id="captions"
+        data-composition-id="captions"
+        data-composition-src="compositions/captions.html"
+        data-start="0"
+        data-duration="29.6"
+        data-track-index="2"
+        data-track-kind="captions"
+        data-width="1920"
+        data-height="1080"
+      ></div>
+
+      <!-- Voiceover: Bryce's ElevenLabs clone, one take cut per line and placed on the table times (see SCRIPT.md). Captions come from assets/transcript.json. -->
+      <audio id="voiceover" src="assets/voiceover.mp3" data-start="0" data-duration="29.6" data-volume="1"></audio>
+
+      <audio data-hf-id="hf-gp91" id="s-dot" src="assets/sfx/pop.mp3" data-start="3.0" data-volume="0.5"></audio>
+      <audio data-hf-id="hf-2xhw" id="s-coach" src="assets/sfx/click.mp3" data-start="5.65" data-volume="0.7"></audio>
+      <audio data-hf-id="hf-xffg" id="s-q1" src="assets/sfx/pop.mp3" data-start="6.4" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-pfip" id="s-a1" src="assets/sfx/click-soft.mp3" data-start="9.0" data-volume="0.8"></audio>
+      <audio data-hf-id="hf-c6ag" id="s-q2" src="assets/sfx/pop.mp3" data-start="9.35" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-77xu" id="s-a2" src="assets/sfx/click.mp3" data-start="12.6" data-volume="0.7"></audio>
+      <audio data-hf-id="hf-tp61" id="s-a3" src="assets/sfx/click-soft.mp3" data-start="14.8" data-volume="0.8"></audio>
+      <audio data-hf-id="hf-onnb" id="s-rewrite" src="assets/sfx/click.mp3" data-start="16.15" data-volume="0.7"></audio>
+      <audio data-hf-id="hf-80ic" id="s-result" src="assets/sfx/pop.mp3" data-start="16.8" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-3ion" id="s-use" src="assets/sfx/click-soft.mp3" data-start="18.45" data-volume="0.8"></audio>
+      <audio data-hf-id="hf-35tt" id="s-keys" src="assets/sfx/typing.mp3" data-start="19.55" data-volume="0.3"></audio>
+      <audio data-hf-id="hf-8epn" id="s-riser" src="assets/sfx/riser.mp3" data-start="22.4" data-media-start="1.8" data-duration="3.2" data-volume="0.3" data-fade-out="0.3"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

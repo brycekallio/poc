@@ -1,0 +1,14 @@
+{
+  "note": "Voiceover lines on the film's clock. Edit words here, then run: node tools/captions.mjs. Lines marked onCard are spoken over the end card, whose text already shows them, so they get no caption.",
+  "lines": [
+    { "id": "l1", "start": 0.25, "end": 2.9, "slot": "low", "groups": ["Short, but cover everything?", "Can't have both."] },
+    { "id": "l2", "start": 3.0, "end": 6.0, "slot": "low", "groups": ["P.O.C sits by your cursor.", "Click Coach this draft."] },
+    { "id": "l3", "start": 6.1, "end": 9.1, "slot": "high", "groups": ["It asks about your words:", "who is this for?"] },
+    { "id": "l4", "start": 9.4, "end": 12.7, "slot": "high", "groups": ["Where your draft", "contradicts itself,", "you choose what you meant."] },
+    { "id": "l5", "start": 13.0, "end": 16.1, "slot": "high", "groups": ["One more about the numbers,", "then Rewrite."] },
+    { "id": "l6", "start": 16.4, "end": 18.45, "slot": "high", "groups": ["Then it rewrites the prompt."] },
+    { "id": "l7", "start": 19.0, "end": 22.6, "slot": "low", "groups": ["Right in the chat box.", "Same request, now it's clear."] },
+    { "id": "l8", "start": 24.9, "end": 27.0, "onCard": true, "groups": ["It asks first. Then it rewrites."] },
+    { "id": "l9", "start": 27.1, "end": 29.4, "onCard": true, "groups": ["Free with Ollama, or use your own key."] }
+  ]
+}

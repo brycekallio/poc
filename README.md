@@ -2,9 +2,9 @@
 
 **P.O.C stands for Prompt Optimization Coach.** It's a small Chrome extension that coaches the prompt you're writing on an AI chat site. Write a draft, hover the dot beside your cursor, answer a few quick questions about what you meant, and get a sharper prompt written back into the chat box.
 
-![P.O.C (Prompt Optimization Coach) turning a vague draft into a clear prompt](docs/demo.gif)
+[![P.O.C (Prompt Optimization Coach) turning a vague draft into a clear prompt. Click to watch the video.](docs/demo.gif)](https://poc-prompt-coach.netlify.app/media/demo.mp4)
 
-Prefer sound? [Download the demo video](https://github.com/brycekallio/poc/raw/main/docs/demo.mp4) (30 seconds, 2.7 MB).
+[Watch the 30-second demo video](https://poc-prompt-coach.netlify.app/media/demo.mp4) (MP4, 2.2 MB, captioned).
 
 - **Built for AI chat.** It shows up on ChatGPT, Claude, Gemini, Google AI Studio, Microsoft Copilot, Perplexity, Grok, DeepSeek, Le Chat, Poe, Meta AI, Kimi, Qwen, T3 Chat, HuggingChat and OpenRouter. It stays out of Gmail, Google Docs and search bars.
 - **Asks before it rewrites.** It asks about what only you know, such as who it's for and what matters most. It doesn't guess.

@@ -1,0 +1,626 @@
+<template>
+  <style>
+    @font-face{font-family:"Geist";font-weight:400;src:url("assets/fonts/Geist-Regular.woff2") format("woff2");}@font-face{font-family:"Geist";font-weight:500;src:url("assets/fonts/Geist-Medium.woff2") format("woff2");}@font-face{font-family:"Geist";font-weight:600;src:url("assets/fonts/Geist-SemiBold.woff2") format("woff2");}
+    /* P.O.C: the caret dot and its popup. Loaded into a shadow root as text (see
+   build.mjs), so nothing here reaches the host page and the host's styles do
+   not reach in.
+
+   Style: achromatic ledger. Ink and greys; the one hue is the dot itself and
+   the bar beside your quoted words. The popup floats over the host page, so it
+   is the one surface allowed a shadow. */
+
+#stage {
+  
+
+  --surface: #ffffff;
+  --raised: #f2f2f2;
+  --rule: #efefef;
+  --control: #dedede;
+  --text: #0a0a0a;
+  --muted: #6b6b6b;
+  --primary: #141414;
+  --on-primary: #ffffff;
+  --hue: #1d5fbf;
+  --negative: #c4242a;
+  --skeleton: #f3f3f3;
+  --float: 0 10px 30px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.08);
+  --edge: transparent;
+  --glass: rgb(255 255 255 / 0.62);
+  --glass-edge: rgb(0 0 0 / 0.12);
+  --glass-shine: rgb(255 255 255 / 0.9);
+
+  --radius: 10px;
+  --radius-control: 7px;
+  --font: "Geist", Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* The theme follows the ground under the prompt box (content.js measures it),
+   not the OS setting: a dark OS can still show a light claude.ai. */
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--hue);
+  outline-offset: 2px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The orb ─────────────────────────────────────────────────────────────
+   A small disc of frosted glass beside the caret, carrying the P.O.C mark.
+   It glides after the caret rather than jumping, and on hover widens into a
+   pill that names itself. Glass is a deliberate exception to the house style
+   (Bryce, 2026-10-28): it is the one floating object, and frosting lets the
+   text under it show through instead of being covered. */
+.dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483646;
+  display: block;
+  height: 22px;
+  margin: -11px 0 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  will-change: transform;
+}
+.dot.still {
+}
+.dot[hidden] {
+  display: none;
+}
+.orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  color: var(--text);
+  /* taste-skill-ignore-start: the requested glass */
+  background: var(--glass);
+  backdrop-filter: blur(12px) saturate(1.8);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8);
+  box-shadow:
+    inset 0 0 0 0.5px var(--glass-edge),
+    inset 0 1px 0 var(--glass-shine),
+    0 4px 14px rgb(0 0 0 / 0.12),
+    0 1px 2px rgb(0 0 0 / 0.08);
+  /* taste-skill-ignore-end */
+}
+.orb .wm {
+  font-size: 11px;
+}
+.dot:hover .orb,
+.dot[aria-expanded="true"] .orb {
+  padding: 0 9px;
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 0.5px var(--glass-edge),
+    inset 0 1px 0 var(--glass-shine),
+    0 8px 22px rgb(0 0 0 / 0.16),
+    0 1px 2px rgb(0 0 0 / 0.08);
+}
+.dot:hover .wm,
+.dot[aria-expanded="true"] .wm {
+  letter-spacing: 0.06em;
+}
+.dot:active .orb {
+  transform: scale(0.96);
+}
+@keyframes orb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* ── The popup ─────────────────────────────────────────────────────────── */
+.popup {
+  position: fixed;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 2147483647;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  border-radius: var(--radius);
+  outline: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--float); /* taste-skill-ignore: the popup floats over the host page */
+  font: 400 13px / 18px var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+.popup[hidden] {
+  display: none;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 6px 0 14px;
+}
+.name {
+  display: flex;
+}
+.name .wm {
+  font-size: 15px;
+}
+.step {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+.step:empty + .icon {
+  margin-left: auto;
+}
+.icon svg {
+  width: 14px;
+  height: 14px;
+}
+.icon:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.body {
+  padding: 2px 14px 14px;
+}
+.note,
+.lead {
+  margin: 0;
+}
+.lead {
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+/* Idle: one line of what it does, one button. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* One question. */
+.quote {
+  margin: 0 0 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--hue);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+.question {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.opts {
+  display: grid;
+  gap: 4px;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  text-align: left;
+}
+.opt:hover {
+  background: var(--control);
+}
+.opt:active {
+  transform: scale(0.985);
+}
+.opt .check {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0;
+}
+.opt[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.opt[aria-pressed="true"] .check {
+  opacity: 1;
+}
+.own {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  margin-top: 4px;
+  padding: 0 10px;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.own::placeholder {
+  color: var(--muted);
+}
+.own[hidden] {
+  display: none;
+}
+
+.alt,
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+.foot {
+  justify-content: space-between;
+}
+.link {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.link:hover {
+  color: var(--text);
+}
+.link.back {
+  margin-left: auto;
+}
+.link.strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.btn.primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+/* Disabled stays legible; its title says why. */
+.btn:disabled {
+  background: var(--raised);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* Summary of the answers, before the rewrite. */
+.answers {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.answers li {
+  display: grid;
+  gap: 1px;
+}
+.sq {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.sa.skipped {
+  color: var(--muted);
+}
+
+/* Loading: the question's shape in flat bars. No shimmer. */
+.sk {
+  display: block;
+  border-radius: 4px;
+  background: var(--skeleton);
+}
+.sk-quote {
+  width: 44%;
+  height: 12px;
+  margin: 2px 0 10px;
+}
+.sk-question {
+  width: 90%;
+  height: 13px;
+  margin-bottom: 6px;
+}
+.sk-question.short {
+  width: 56%;
+  margin-bottom: 12px;
+}
+.sk-opt {
+  height: 32px;
+  border-radius: var(--radius-control);
+}
+.status {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.error {
+  display: flex;
+  gap: 8px;
+}
+.error p {
+  margin: 0 0 6px;
+}
+.error-glyph {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  flex: none;
+  color: var(--negative);
+}
+
+/* The rewrite: the prompt itself, readable and selectable, then the
+   techniques it applies as quiet tags. */
+.rewrite {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  line-height: 19px;
+}
+.rewrite:focus-visible {
+  outline: 2px solid var(--hue);
+}
+.techniques {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.techniques li {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+/* A rewrite that failed the checks twice: shown, but never passed off as clean. */
+.caution {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--negative);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  background: var(--raised);
+  font-size: 12px;
+  line-height: 17px;
+}
+.caution p {
+  margin: 0 0 2px;
+}
+.caution ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn.ghost:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.sk-line {
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+/* The wordmark. The o is a disc in the hue, sized to the x-height and sat on
+   the baseline, so it reads as a letter and as the orb's dot at once. */
+.wm {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.wm-o {
+  display: inline-block;
+  width: 0.56em;
+  height: 0.56em;
+  margin: 0 0.06em;
+  border-radius: 50%;
+  background: var(--hue);
+}
+
+    
+.popup { position: absolute; left: 0; top: 0; overflow: visible; transform-origin: 0 0; }
+.dot { position: static; margin: 0; }
+.wm-o { flex: none; }
+    #root { position: absolute; inset: 0; background: #fff; overflow: hidden; font-family: Geist, sans-serif; color: #0a0a0a; }
+    #stage { position: absolute; inset: 0; }
+    #composer { position: absolute; left: 96px; top: 110px; width: 1728px; height: 680px; box-sizing: border-box; border: 4px solid #1d5fbf; border-radius: 44px; background: #fff; transform-origin: 0 0; }
+    #text { position: absolute; left: 88px; top: 68px; right: 0; bottom: 0; }
+    .w { position: absolute; font: 400 68px/88px Geist, sans-serif; letter-spacing: -0.01em; white-space: nowrap; color: #0a0a0a; }
+    .fresh { opacity: 0; }
+    #caret { position: absolute; left: 226px; top: 275px; width: 5px; height: 66px; background: #0a0a0a; }
+    #dot { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+    #dot .dot { zoom: 18; }
+    #dot .orb { width: max-content; transform-origin: 0 0; }
+    .state { position: absolute; left: 1056px; width: 320px; transform: scale(2.4); transform-origin: 0 0; }
+    .cap { position: absolute; left: 96px; font: 600 56px/68px Geist, sans-serif; letter-spacing: -0.01em; color: #0a0a0a; }
+    .cap.low { top: 862px; }
+    .cap.high { top: 690px; }
+    #st-q1 .quote, #st-q2 .quote { color: transparent; }
+    #example { position: absolute; left: 96px; top: 948px; font: 400 30px/40px Geist, sans-serif; color: #6b6b6b; }
+    .carry { position: absolute; font: 400 28.8px/38px Geist, sans-serif; color: #0a0a0a; white-space: nowrap; }
+    #cursor { position: absolute; left: 0; top: 0; width: 42px; height: 56px; z-index: 20; }
+    #end-line { position: absolute; left: 0; right: 0; top: 650px; text-align: center; font: 600 56px/68px Geist, sans-serif; letter-spacing: -0.01em; }
+    #end-sub { position: absolute; left: 0; right: 0; top: 730px; text-align: center; font: 400 36px/46px Geist, sans-serif; color: #6b6b6b; }
+    #end-cta { position: absolute; left: 50%; top: 820px; width: 720px; margin-left: -360px; height: 96px; border-radius: 18px; background: #141414; color: #fff; font: 500 40px/96px Geist, sans-serif; text-align: center; }
+  </style>
+  <div data-hf-id="hf-3hct" id="root" data-composition-id="film" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-1s05" id="stage" data-layout-allow-overlap>
+    <div data-hf-id="hf-kwd8" id="composer" class="clip" data-start="0" data-duration="29.6" data-track-index="1">
+      <div data-hf-id="hf-nx8o" id="text"><span data-hf-id="hf-60n9" id="o0" class="w old gone" style="left:0px;top:0px">write</span><span data-hf-id="hf-67dw" id="o1" class="w old kept" style="left:168px;top:0px">a</span><span data-hf-id="hf-b9yq" id="o2" class="w old kept" style="left:221px;top:0px">summary</span><span data-hf-id="hf-jmic" id="o3" class="w old kept" style="left:522px;top:0px">of</span><span data-hf-id="hf-yqqd" id="o4" class="w old kept" style="left:601px;top:0px">the</span><span data-hf-id="hf-dpkq" id="o5" class="w old gone" style="left:717px;top:0px">q3</span><span data-hf-id="hf-4t9u" id="o6" class="w old kept" style="left:814px;top:0px">report</span><span data-hf-id="hf-q42b" id="o7" class="w old kept" style="left:1014px;top:0px">for</span><span data-hf-id="hf-4qjf" id="o8" class="w old gone" style="left:1117px;top:0px">the</span><span data-hf-id="hf-s5vv" id="o9" class="w old gone" style="left:1233px;top:0px">team,</span><span data-hf-id="hf-ke7l" id="o10" class="w old gone" style="left:0px;top:88px">make</span><span data-hf-id="hf-6o0o" id="o11" class="w old gone" style="left:184px;top:88px">it</span><span data-hf-id="hf-7f3a" id="o12" class="w old gone" style="left:240px;top:88px">good</span><span data-hf-id="hf-ohsv" id="o13" class="w old kept" style="left:410px;top:88px">and</span><span data-hf-id="hf-j0m0" id="o14" class="w old gone" style="left:541px;top:88px">not</span><span data-hf-id="hf-yz5u" id="o15" class="w old gone" style="left:657px;top:88px">too</span><span data-hf-id="hf-yf6m" id="o16" class="w old gone" style="left:775px;top:88px">long</span><span data-hf-id="hf-cvq3" id="o17" class="w old gone" style="left:923px;top:88px">but</span><span data-hf-id="hf-y776" id="o18" class="w old gone" style="left:1041px;top:88px">cover</span><span data-hf-id="hf-xri5" id="o19" class="w old gone" style="left:0px;top:176px">everything.</span><span data-hf-id="hf-6ubg" id="o20" class="w old gone" style="left:351px;top:176px">use</span><span data-hf-id="hf-w49s" id="o21" class="w old kept" style="left:476px;top:176px">the</span><span data-hf-id="hf-yvcw" id="o22" class="w old kept" style="left:593px;top:176px">numbers</span><span data-hf-id="hf-tpxu" id="o23" class="w old kept" style="left:877px;top:176px">from</span><span data-hf-id="hf-js3h" id="o24" class="w old kept" style="left:1037px;top:176px">the</span><span data-hf-id="hf-e2ay" id="o25" class="w old kept" style="left:1153px;top:176px">finance</span><span data-hf-id="hf-v5zf" id="o26" class="w old gone" style="left:0px;top:264px">section</span><span data-hf-id="hf-2muf" id="n0" class="w fresh" style="left:0px;top:0px">Create</span><span data-hf-id="hf-zlac" id="n2" class="w fresh" style="left:272px;top:0px">concise</span><span data-hf-id="hf-s94v" id="n6" class="w fresh" style="left:1018px;top:0px">Q3</span><span data-hf-id="hf-dxqx" id="n9" class="w fresh" style="left:0px;top:88px">leadership,</span><span data-hf-id="hf-rzn2" id="n10" class="w fresh" style="left:347px;top:88px">focusing</span><span data-hf-id="hf-xji8" id="n11" class="w fresh" style="left:626px;top:88px">on</span><span data-hf-id="hf-o7a3" id="n12" class="w fresh" style="left:719px;top:88px">results</span><span data-hf-id="hf-0bsz" id="n14" class="w fresh" style="left:1071px;top:88px">risks,</span><span data-hf-id="hf-5cb0" id="n15" class="w fresh" style="left:1243px;top:88px">and</span><span data-hf-id="hf-4mq2" id="n16" class="w fresh" style="left:0px;top:176px">include</span><span data-hf-id="hf-uxsg" id="n18" class="w fresh" style="left:355px;top:176px">financial</span><span data-hf-id="hf-yqun" id="n23" class="w fresh" style="left:0px;top:264px">section.</span><span data-hf-id="hf-tauw" id="n24" class="w fresh" style="left:251px;top:264px">Keep</span><span data-hf-id="hf-ffs7" id="n25" class="w fresh" style="left:420px;top:264px">the</span><span data-hf-id="hf-dr9l" id="n26" class="w fresh" style="left:537px;top:264px">main</span><span data-hf-id="hf-mqyo" id="n27" class="w fresh" style="left:703px;top:264px">body</span><span data-hf-id="hf-q6qt" id="n28" class="w fresh" style="left:871px;top:264px">brief,</span><span data-hf-id="hf-gwe5" id="n29" class="w fresh" style="left:1035px;top:264px">with</span><span data-hf-id="hf-s8op" id="n30" class="w fresh" style="left:1183px;top:264px">detailed</span><span data-hf-id="hf-eyfd" id="n31" class="w fresh" style="left:0px;top:352px">comparisons</span><span data-hf-id="hf-7hw7" id="n32" class="w fresh" style="left:406px;top:352px">and</span><span data-hf-id="hf-11jg" id="n33" class="w fresh" style="left:537px;top:352px">data</span><span data-hf-id="hf-bka3" id="n34" class="w fresh" style="left:688px;top:352px">in</span><span data-hf-id="hf-iqo7" id="n35" class="w fresh" style="left:759px;top:352px">an</span><span data-hf-id="hf-27rz" id="n36" class="w fresh" style="left:851px;top:352px">appendix.</span><i data-hf-id="hf-xedq" id="caret"></i>
+        <div data-hf-id="hf-ij6d" id="dot" data-layout-ignore><button data-hf-id="hf-ob30" class="dot" type="button" aria-expanded="false"><span data-hf-id="hf-qhrw" class="orb"><span data-hf-id="hf-14yh" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-pgey" class="wm-o" aria-hidden="true"></span>c</span></span></button></div>
+      </div>
+    </div>
+    <div data-hf-id="hf-s1kb" id="st-idle" class="state clip" data-start="4.75" data-duration="1.05" data-track-index="2" style="top:403px"><div data-hf-id="hf-3mqm" class="popup"><div data-hf-id="hf-ufsv" class="bar"><span data-hf-id="hf-v6h0" class="name"><span data-hf-id="hf-tuzx" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-bdz2" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-nxcf" class="step num"></span><button data-hf-id="hf-7lil" class="icon" type="button"><svg data-hf-id="hf-z4wu" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-maet" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-2t3w" class="body"><div data-hf-id="hf-wkxq" class="idle"><p data-hf-id="hf-g38v" class="lead">Sharpen this with a few quick questions.</p><div data-hf-id="hf-thy4" class="row"><span data-hf-id="hf-ie1s" class="meta num">27 words</span><button data-hf-id="hf-v75b" class="btn primary go" type="button">Coach this draft</button></div></div></div></div></div>
+    <div data-hf-id="hf-hpkx" id="st-load1" class="state clip" data-start="5.8" data-duration="0.60" data-track-index="2" style="top:269px"><div data-hf-id="hf-8536" class="popup"><div data-hf-id="hf-c51b" class="bar"><span data-hf-id="hf-6jek" class="name"><span data-hf-id="hf-v1x0" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-bsa3" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-tewf" class="step num"></span><button data-hf-id="hf-c0v5" class="icon" type="button"><svg data-hf-id="hf-9gg2" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-6fl5" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-6g9g" class="body"><span data-hf-id="hf-7zss" class="sk sk-quote"></span><span data-hf-id="hf-4dgk" class="sk sk-question"></span><span data-hf-id="hf-vdwa" class="sk sk-question short"></span><div data-hf-id="hf-a4xe" class="opts"><span data-hf-id="hf-02ar" class="sk sk-opt"></span><span data-hf-id="hf-zrtv" class="sk sk-opt"></span><span data-hf-id="hf-zdiu" class="sk sk-opt"></span></div></div></div></div>
+    <div data-hf-id="hf-bd4q" id="st-q1" class="state clip" data-start="6.4" data-duration="2.60" data-track-index="2" style="top:228px"><div data-hf-id="hf-8je7" class="popup"><div data-hf-id="hf-bqqa" class="bar"><span data-hf-id="hf-5chh" class="name"><span data-hf-id="hf-unlz" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-c6l4" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-fxe2" class="step num">1 of 3</span><button data-hf-id="hf-d7s8" class="icon" type="button"><svg data-hf-id="hf-9ur3" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-7mi8" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-59cd" class="body"><div data-hf-id="hf-xt7l" class="q"><p data-hf-id="hf-3sxx" class="quote">“for the team”</p><p data-hf-id="hf-02ep" class="question">Is this for the people who did the work, or for leadership?</p><div data-hf-id="hf-lg6u" class="opts"><button data-hf-id="hf-3x0g" class="opt" type="button" aria-pressed="undefined"><span data-hf-id="hf-9cok">The team: what we did and learned</span><svg data-hf-id="hf-552l" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-lrhn" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-r6i9" class="opt pick" type="button" aria-pressed="undefined"><span data-hf-id="hf-7nxr">Leadership: results and risks only</span><svg data-hf-id="hf-e1ep" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-h7ij" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-c4pk" class="opt" type="button" aria-pressed="undefined"><span data-hf-id="hf-nlda">Both, in separate sections</span><svg data-hf-id="hf-f8bs" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-gt7i" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div data-hf-id="hf-m4y1" class="alt"><button data-hf-id="hf-c1vh" class="link" type="button">Write my own</button><button data-hf-id="hf-1gst" class="link" type="button">Skip</button><button data-hf-id="hf-hz62" class="link back" type="button">Back</button></div></div></div></div></div>
+    <div data-hf-id="hf-wvzv" id="st-q1p" class="state clip" data-start="9" data-duration="0.35" data-track-index="2" style="top:228px"><div data-hf-id="hf-8xp8" class="popup"><div data-hf-id="hf-bcf9" class="bar"><span data-hf-id="hf-5qsi" class="name"><span data-hf-id="hf-vuj2" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-9efx" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-ez66" class="step num">1 of 3</span><button data-hf-id="hf-cth7" class="icon" type="button"><svg data-hf-id="hf-a924" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-7877" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-5nne" class="body"><div data-hf-id="hf-dbn9" class="q"><p data-hf-id="hf-g2op" class="quote">“for the team”</p><p data-hf-id="hf-rqcl" class="question">Is this for the people who did the work, or for leadership?</p><div data-hf-id="hf-luhv" class="opts"><button data-hf-id="hf-ujbd" class="opt" type="button" aria-pressed="false"><span data-hf-id="hf-esuk">The team: what we did and learned</span><svg data-hf-id="hf-eu0r" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-gewh" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-07q3" class="opt pick" type="button" aria-pressed="true"><span data-hf-id="hf-9n2n">Leadership: results and risks only</span><svg data-hf-id="hf-cuhm" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-g0lg" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-e3i5" class="opt" type="button" aria-pressed="false"><span data-hf-id="hf-djhu">Both, in separate sections</span><svg data-hf-id="hf-cg6l" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-fmaf" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div data-hf-id="hf-hvnh" class="alt"><button data-hf-id="hf-tjtd" class="link" type="button">Write my own</button><button data-hf-id="hf-ly0x" class="link" type="button">Skip</button><button data-hf-id="hf-h4b2" class="link back" type="button">Back</button></div></div></div></div></div>
+    <div data-hf-id="hf-7qbo" id="st-q2" class="state clip" data-start="9.35" data-duration="3.25" data-track-index="2" style="top:228px"><div data-hf-id="hf-9c09" class="popup"><div data-hf-id="hf-e4kg" class="bar"><span data-hf-id="hf-7qbn" class="name"><span data-hf-id="hf-vg81" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-9sqy" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-p1xt" class="step num">2 of 3</span><button data-hf-id="hf-aty2" class="icon" type="button"><svg data-hf-id="hf-and5" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-58o2" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-7n6j" class="body"><div data-hf-id="hf-eikc" class="q"><p data-hf-id="hf-7x3s" class="quote">“not too long but cover everything”</p><p data-hf-id="hf-e845" class="question">When length and coverage collide, which one wins?</p><div data-hf-id="hf-m8sw" class="opts"><button data-hf-id="hf-axsh" class="opt" type="button" aria-pressed="undefined"><span data-hf-id="hf-idtg">Short: one page at most</span><svg data-hf-id="hf-dn3o" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-f7ze" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-bc3i" class="opt" type="button" aria-pressed="undefined"><span data-hf-id="hf-dmu0">Complete: length is fine</span><svg data-hf-id="hf-d8sn" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-etod" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-ztt1" class="opt pick" type="button" aria-pressed="undefined"><span data-hf-id="hf-i5ie">Short body, details in an appendix</span><svg data-hf-id="hf-hm5y" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-ks9s" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div data-hf-id="hf-j2kk" class="alt"><button data-hf-id="hf-uqqg" class="link" type="button">Write my own</button><button data-hf-id="hf-n4y0" class="link" type="button">Skip</button><button data-hf-id="hf-him3" class="link back" type="button">Back</button></div></div></div></div></div>
+    <div data-hf-id="hf-06r4" id="st-q2p" class="state clip" data-start="12.6" data-duration="0.35" data-track-index="2" style="top:228px"><div data-hf-id="hf-9qba" class="popup"><div data-hf-id="hf-dq9f" class="bar"><span data-hf-id="hf-84mo" class="name"><span data-hf-id="hf-wn54" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-a71z" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-xsw5" class="step num">2 of 3</span><button data-hf-id="hf-afn1" class="icon" type="button"><svg data-hf-id="hf-b1o6" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-4ud1" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-81hk" class="body"><div data-hf-id="hf-e49b" class="q"><p data-hf-id="hf-9h9s" class="quote">“not too long but cover everything”</p><p data-hf-id="hf-dio9" class="question">When length and coverage collide, which one wins?</p><div data-hf-id="hf-jgnp" class="opts"><button data-hf-id="hf-faf8" class="opt" type="button" aria-pressed="false"><span data-hf-id="hf-9bws">Short: one page at most</span><svg data-hf-id="hf-h7ux" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-kdyr" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-ew47" class="opt" type="button" aria-pressed="false"><span data-hf-id="hf-ipf4">Complete: length is fine</span><svg data-hf-id="hf-gp4z" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-mye9" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-n9sr" class="opt pick" type="button" aria-pressed="true"><span data-hf-id="hf-ji0a">Short body, details in an appendix</span><svg data-hf-id="hf-h3g0" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-ncpa" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div data-hf-id="hf-io9j" class="alt"><button data-hf-id="hf-ucff" class="link" type="button">Write my own</button><button data-hf-id="hf-mqmz" class="link" type="button">Skip</button><button data-hf-id="hf-hwx4" class="link back" type="button">Back</button></div></div></div></div></div>
+    <div data-hf-id="hf-ezbg" id="st-q3" class="state clip" data-start="12.95" data-duration="1.85" data-track-index="2" style="top:254px"><div data-hf-id="hf-a4mb" class="popup"><div data-hf-id="hf-dbye" class="bar"><span data-hf-id="hf-6xpl" class="name"><span data-hf-id="hf-w8u3" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-ald0" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-bbx8" class="step num">3 of 3</span><button data-hf-id="hf-bmk4" class="icon" type="button"><svg data-hf-id="hf-bfz7" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-61a4" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-6ukh" class="body"><div data-hf-id="hf-fb6e" class="q"><p data-hf-id="hf-vqqu" class="question">Compare Q3's numbers with Q2, or report Q3 alone?</p><div data-hf-id="hf-juyq" class="opts"><button data-hf-id="hf-a56f" class="opt" type="button" aria-pressed="undefined"><span data-hf-id="hf-f1uj">Compare with Q2</span><svg data-hf-id="hf-fwix" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-nr0b" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-10q4" class="opt pick" type="button" aria-pressed="undefined"><span data-hf-id="hf-0si6">Q3 alone</span><svg data-hf-id="hf-gaty" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-o5bc" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-ajhg" class="opt" type="button" aria-pressed="undefined"><span data-hf-id="hf-w4pt">Compare with Q3 last year</span><svg data-hf-id="hf-f3wv" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-ld65" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div data-hf-id="hf-jv6m" class="alt"><button data-hf-id="hf-scwa" class="link" type="button">Write my own</button><button data-hf-id="hf-kr3u" class="link" type="button">Skip</button><button data-hf-id="hf-f4rx" class="link back" type="button">Back</button></div></div></div></div></div>
+    <div data-hf-id="hf-gco5" id="st-q3p" class="state clip" data-start="14.8" data-duration="0.30" data-track-index="2" style="top:254px"><div data-hf-id="hf-aixc" class="popup"><div data-hf-id="hf-cxnd" class="bar"><span data-hf-id="hf-7c0m" class="name"><span data-hf-id="hf-xfr6" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-e649" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-15as" class="step num">3 of 3</span><button data-hf-id="hf-b893" class="icon" type="button"><svg data-hf-id="hf-bua8" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-5mz3" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-78vi" class="body"><div data-hf-id="hf-ewvd" class="q"><p data-hf-id="hf-aa3u" class="question">Compare Q3's numbers with Q2, or report Q3 alone?</p><div data-hf-id="hf-k99r" class="opts"><button data-hf-id="hf-g31a" class="opt" type="button" aria-pressed="false"><span data-hf-id="hf-nw4b">Compare with Q2</span><svg data-hf-id="hf-fi7w" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-lrh6" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-mvhq" class="opt pick" type="button" aria-pressed="true"><span data-hf-id="hf-g66q">Q3 alone</span><svg data-hf-id="hf-ebat" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-m5s7" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><button data-hf-id="hf-foq9" class="opt" type="button" aria-pressed="false"><span data-hf-id="hf-w92t">Compare with Q3 last year</span><svg data-hf-id="hf-eplu" class="check" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-mk38" d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div data-hf-id="hf-jgvl" class="alt"><button data-hf-id="hf-ryl9" class="link" type="button">Write my own</button><button data-hf-id="hf-kcst" class="link" type="button">Skip</button><button data-hf-id="hf-fj2y" class="link back" type="button">Back</button></div></div></div></div></div>
+    <div data-hf-id="hf-cgzb" id="st-summary" class="state clip" data-start="15.1" data-duration="1.15" data-track-index="2" style="top:227px"><div data-hf-id="hf-4kbx" class="popup"><div data-hf-id="hf-9cw4" class="bar"><span data-hf-id="hf-2ynb" class="name"><span data-hf-id="hf-x1g5" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-ekfa" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-t0le" class="step num"></span><button data-hf-id="hf-flme" class="icon" type="button"><svg data-hf-id="hf-5vot" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-3nfy" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-98en" class="body"><p data-hf-id="hf-z0u8" class="lead">Got it. Here is what the rewrite will use.</p><ul data-hf-id="hf-mool" class="answers"><li data-hf-id="hf-a4s6"><span data-hf-id="hf-n00z" class="sq">Is this for the people who did the work, or for leadership?</span><span data-hf-id="hf-48nv" class="sa">Leadership: results and risks only</span></li><li data-hf-id="hf-9x5m"><span data-hf-id="hf-xtkn" class="sq">When length and coverage collide, which one wins?</span><span data-hf-id="hf-k43e" class="sa">Short body, details in an appendix</span></li><li data-hf-id="hf-abgn"><span data-hf-id="hf-1i7g" class="sq">Compare Q3's numbers with Q2, or report Q3 alone?</span><span data-hf-id="hf-1aaa" class="sa">Q3 alone</span></li></ul><div data-hf-id="hf-mlgk" class="foot"><button data-hf-id="hf-x1pl" class="link" type="button">Change answers</button><button data-hf-id="hf-lruu" class="btn primary go" type="button">Rewrite</button></div></div></div></div>
+    <div data-hf-id="hf-6423" id="st-load2" class="state clip" data-start="16.25" data-duration="0.55" data-track-index="2" style="top:331px"><div data-hf-id="hf-4ymy" class="popup"><div data-hf-id="hf-8yl3" class="bar"><span data-hf-id="hf-3cyc" class="name"><span data-hf-id="hf-sv53" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-zidm" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-smad" class="step num"></span><button data-hf-id="hf-f7bd" class="icon" type="button"><svg data-hf-id="hf-69zu" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-394x" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-9mpo" class="body"><span data-hf-id="hf-yphy" class="sk sk-line"></span><span data-hf-id="hf-9soq" class="sk sk-line"></span><span data-hf-id="hf-a6zr" class="sk sk-line"></span><span data-hf-id="hf-alas" class="sk sk-line"></span><span data-hf-id="hf-azlt" class="sk sk-line"></span><span data-hf-id="hf-bdwu" class="sk sk-line"></span></div></div></div>
+    <div data-hf-id="hf-0i1b" id="st-result" class="state clip" data-start="16.8" data-duration="1.80" data-track-index="2" style="top:204px"><div data-hf-id="hf-1zhy" class="popup"><div data-hf-id="hf-hwf1" class="bar"><span data-hf-id="hf-u6as" class="name"><span data-hf-id="hf-t9g4" class="wm" role="img" aria-label="P.O.C">p<span data-hf-id="hf-z42l" class="wm-o" aria-hidden="true"></span>c</span></span><span data-hf-id="hf-vefk" class="step num"></span><button data-hf-id="hf-l4eb" class="icon" type="button"><svg data-hf-id="hf-bdx2" viewBox="0 0 16 16" aria-hidden="true"><path data-hf-id="hf-7xnf" d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><div data-hf-id="hf-zsvg" class="body"><div data-hf-id="hf-ru07" class="rewrite">Create a concise summary of the Q3 report for leadership, focusing on results and risks, and include the financial numbers from the finance section. Keep the main body brief, with detailed comparisons and data in an appendix.</div><ul data-hf-id="hf-xs15" class="techniques"><li data-hf-id="hf-zioy">Clear deliverable</li><li data-hf-id="hf-90hc">Purpose &amp; audience</li><li data-hf-id="hf-bt9a">Explicit scope</li><li data-hf-id="hf-h28i">Reasons given</li></ul><div data-hf-id="hf-3ly4" class="foot"><button data-hf-id="hf-w085" class="link" type="button">Back</button><div data-hf-id="hf-zgc1" class="actions"><button data-hf-id="hf-4kqg" class="btn ghost" type="button">Copy</button><button data-hf-id="hf-kvlf" class="btn primary go" type="button">Use this</button></div></div></div></div></div>
+    <span data-hf-id="hf-i7bi" id="c-q1-0" class="carry clip" data-start="6.4" data-duration="0.56" data-track-index="4" style="left:1121.0px;top:324px">for</span><span data-hf-id="hf-pisp" id="c-q1-1" class="carry clip" data-start="6.4" data-duration="0.56" data-track-index="4" style="left:1165.4px;top:324px">the</span><span data-hf-id="hf-9oii" id="c-q1-2" class="carry clip" data-start="6.4" data-duration="0.56" data-track-index="4" style="left:1215.8px;top:324px">team</span><span data-hf-id="hf-z47y" id="c-q2-0" class="carry clip" data-start="9.35" data-duration="0.56" data-track-index="4" style="left:1121.0px;top:324px">not</span><span data-hf-id="hf-uce3" id="c-q2-1" class="carry clip" data-start="9.35" data-duration="0.56" data-track-index="4" style="left:1171.4px;top:324px">too</span><span data-hf-id="hf-9jm4" id="c-q2-2" class="carry clip" data-start="9.35" data-duration="0.56" data-track-index="4" style="left:1222.1px;top:324px">long</span><span data-hf-id="hf-lden" id="c-q2-3" class="carry clip" data-start="9.35" data-duration="0.56" data-track-index="4" style="left:1286.0px;top:324px">but</span><span data-hf-id="hf-cr1j" id="c-q2-4" class="carry clip" data-start="9.35" data-duration="0.56" data-track-index="4" style="left:1337.2px;top:324px">cover</span><span data-hf-id="hf-kwze" id="c-q2-5" class="carry clip" data-start="9.35" data-duration="0.56" data-track-index="4" style="left:1416.4px;top:324px">everything</span>
+    <p data-hf-id="hf-v7iw" id="example" class="clip" data-start="16.8" data-duration="7.9" data-track-index="3">Example, best of several runs</p>
+    <p data-hf-id="hf-ofi7" id="end-line" class="clip" data-start="25.5" data-duration="4.1" data-track-index="3">It asks first. Then it rewrites.</p>
+    <p data-hf-id="hf-fgu3" id="end-sub" class="clip" data-start="26.3" data-duration="3.3" data-track-index="3">P.O.C is Prompt Optimization Coach. Free with Ollama, or use your own key.</p>
+    <div data-hf-id="hf-a87t" id="end-cta" class="clip" data-start="27" data-duration="2.6" data-track-index="3">github.com/brycekallio/poc</div>
+    <svg data-hf-id="hf-t8hf" id="cursor" class="clip" data-start="3.7" data-duration="15.2" data-track-index="5" viewBox="0 0 20 26"><path data-hf-id="hf-phc7" d="M2 2l14 11-6 1 3.500 7-3 1.500L7 15.500 2 20z" fill="#0a0a0a" stroke="#fff" stroke-width="1.5"/></svg>
+    </div>
+  </div>
+  <script>
+    const D = {"oldWords":[{"x":0,"y":0,"w":152},{"x":168,"y":0,"w":37},{"x":221,"y":0,"w":284},{"x":522,"y":0,"w":62},{"x":601,"y":0,"w":100},{"x":717,"y":0,"w":81},{"x":814,"y":0,"w":184},{"x":1014,"y":0,"w":86},{"x":1117,"y":0,"w":100},{"x":1233,"y":0,"w":171},{"x":0,"y":88,"w":168},{"x":184,"y":88,"w":39},{"x":240,"y":88,"w":154},{"x":410,"y":88,"w":114},{"x":541,"y":88,"w":100},{"x":657,"y":88,"w":101},{"x":775,"y":88,"w":132},{"x":923,"y":88,"w":102},{"x":1041,"y":88,"w":168},{"x":0,"y":176,"w":335},{"x":351,"y":176,"w":109},{"x":476,"y":176,"w":100},{"x":593,"y":176,"w":268},{"x":877,"y":176,"w":143},{"x":1037,"y":176,"w":100},{"x":1153,"y":176,"w":226},{"x":0,"y":264,"w":222}],"newWords":[{"x":0,"y":0,"w":202},{"x":219,"y":0,"w":37},{"x":272,"y":0,"w":234},{"x":522,"y":0,"w":284},{"x":822,"y":0,"w":62},{"x":901,"y":0,"w":100},{"x":1018,"y":0,"w":90},{"x":1124,"y":0,"w":184},{"x":1324,"y":0,"w":86},{"x":0,"y":88,"w":331},{"x":347,"y":88,"w":262},{"x":626,"y":88,"w":76},{"x":719,"y":88,"w":205},{"x":940,"y":88,"w":114},{"x":1071,"y":88,"w":156},{"x":1243,"y":88,"w":114},{"x":0,"y":176,"w":222},{"x":238,"y":176,"w":100},{"x":355,"y":176,"w":257},{"x":628,"y":176,"w":268},{"x":912,"y":176,"w":143},{"x":1071,"y":176,"w":100},{"x":1188,"y":176,"w":226},{"x":0,"y":264,"w":235},{"x":251,"y":264,"w":153},{"x":420,"y":264,"w":100},{"x":537,"y":264,"w":150},{"x":703,"y":264,"w":152},{"x":871,"y":264,"w":148},{"x":1035,"y":264,"w":131},{"x":1183,"y":264,"w":245},{"x":0,"y":352,"w":390},{"x":406,"y":352,"w":114},{"x":537,"y":352,"w":135},{"x":688,"y":352,"w":55},{"x":759,"y":352,"w":75},{"x":851,"y":352,"w":291}],"pairs":[[1,1],[2,3],[3,4],[4,5],[6,7],[7,8],[13,13],[21,17],[22,19],[23,20],[24,21],[25,22]],"FOCUS":{"q1":[7,8,9],"q2":[14,15,16,17,18,19]},"FULL":{"x":96,"y":110,"w":1728,"h":680,"pad":92,"font":68,"line":88},"SHRINK":{"scale":0.529,"x":96,"y":262},"dotAt":{"x":244,"y":275},"dotNew":{"x":1164,"y":363},"carried":[{"id":"c-q1-0","text":"for","from":{"x":681.0740000000001,"y":300.088},"to":{"x":1121,"y":324},"s":6.4},{"id":"c-q1-1","text":"the","from":{"x":735.561,"y":300.088},"to":{"x":1165.4235294117648,"y":324},"s":6.4},{"id":"c-q1-2","text":"team","from":{"x":796.9250000000001,"y":300.088},"to":{"x":1215.7764705882353,"y":324},"s":6.4},{"id":"c-q2-0","text":"not","from":{"x":430.857,"y":346.64},"to":{"x":1121,"y":324},"s":9.35},{"id":"c-q2-1","text":"too","from":{"x":492.221,"y":346.64},"to":{"x":1171.3529411764705,"y":324},"s":9.35},{"id":"c-q2-2","text":"long","from":{"x":554.643,"y":346.64},"to":{"x":1222.1294117647058,"y":324},"s":9.35},{"id":"c-q2-3","text":"but","from":{"x":632.9350000000001,"y":346.64},"to":{"x":1286.035294117647,"y":324},"s":9.35},{"id":"c-q2-4","text":"cover","from":{"x":695.3570000000001,"y":346.64},"to":{"x":1337.235294117647,"y":324},"s":9.35},{"id":"c-q2-5","text":"everything","from":{"x":144.668,"y":393.192},"to":{"x":1416.3882352941177,"y":324},"s":9.35}],"CURSOR":[[3.7,{"x":1500,"y":1120}],[4.3,{"x":492,"y":491}],[5.35,{"x":1644,"y":607}],[5.95,{"x":980,"y":900}],[8.6,{"x":1440,"y":617}],[9.35,{"x":980,"y":900}],[12.2,{"x":1440,"y":703}],[12.75,{"x":980,"y":900}],[14.45,{"x":1440,"y":590}],[15.85,{"x":1705,"y":784}],[18.1,{"x":1703,"y":806}]],"CAPS":[["cap1",0.8,1.85,"low","You can’t have both."],["cap2",3.1,1.3,"low","P.O.C sits by your cursor."],["cap3",6.6,2.6,"high","It asks about your words."],["cap4",9.9,2.9,"high","You choose what you meant."],["cap5",17,1.5,"high","Then it rewrites."],["cap6",20.5,4.1,"low","Same request. Now it’s clear."]]};
+    const tl = gsap.timeline({ paused: true });
+    const css = (sel, vars, at) => tl.to(sel, vars, at);
+    const dim = "#949494", ink = "#0a0a0a";
+    const others = (keep) => D.oldWords.map((_, i) => i).filter((i) => !keep.includes(i)).map((i) => "#o" + i);
+    const focus = (keep, at) => {
+      if (keep.length) tl.to(others(keep).join(","), { color: dim, duration: 0.3, ease: "power2.inOut" }, at);
+      tl.to(keep.map((i) => "#o" + i).join(","), { color: ink, duration: 0.3, ease: "power2.inOut" }, at);
+    };
+    const orbScale = 3 / 18; // The dot is laid out at 18x so its disc stays round.
+
+    gsap.set("#dot", { x: D.dotAt.x, y: D.dotAt.y, scale: orbScale, opacity: 0 });
+    gsap.set(".carry", { transformOrigin: "0 0" });
+    gsap.set("#cursor", { x: D.CURSOR[0][1].x, y: D.CURSOR[0][1].y });
+
+    // Hook: the contradiction alone in ink.
+    focus(D.FOCUS.q2, 0.5);
+    tl.to(D.oldWords.map((_, i) => "#o" + i).join(","), { color: ink, duration: 0.3, ease: "power2.inOut" }, 2.7);
+
+    // The dot arrives at the caret.
+    tl.to("#caret", { opacity: 0, duration: 0.05 }, 3);
+    tl.fromTo("#dot", { opacity: 0, scale: orbScale * 0.6 }, { opacity: 1, scale: orbScale, duration: 0.26, ease: "expo.out" }, 3);
+
+    // Cursor path. Each move lands just before its click.
+    D.CURSOR.slice(1).forEach(([t, p], i) => tl.to("#cursor", { x: p.x, y: p.y, duration: i === 0 ? 0.6 : 0.4, ease: "power2.inOut" }, t - (i === 0 ? 0.6 : 0.4) + 0.3));
+
+    // Hover: the composer moves aside and the panel opens.
+    tl.to("#composer", { x: D.SHRINK.x - D.FULL.x, y: D.SHRINK.y - D.FULL.y, scale: D.SHRINK.scale, duration: 0.6, ease: "power2.inOut" }, 4.4);
+
+    // Each panel opens with the product's own pop.
+    ["idle"].forEach(() => tl.fromTo("#st-idle .popup", { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.15, ease: "power4.out" }, 4.75));
+
+    // Clicks press the button for three frames.
+    for (const [sel, at] of [["#st-idle .go", 5.65], ["#st-summary .go", 16.15], ["#st-result .go", 18.45]]) {
+      tl.to(sel, { scale: 0.98, duration: 0.05 }, at).to(sel, { scale: 1, duration: 0.05 }, at + 0.1);
+    }
+    tl.to("#st-result .popup", { opacity: 0, scale: 0.96, duration: 0.12, ease: "power3.in" }, 18.55);
+
+    // Questions: the words they quote travel from the draft to the panel.
+    focus(D.FOCUS.q1, 6.3);
+    focus(D.FOCUS.q2, 9.25);
+    for (const c of D.carried) {
+      tl.fromTo("#" + c.id, { x: c.from.x - c.to.x, y: c.from.y - c.to.y, scale: 1.26, color: ink }, { x: 0, y: 0, scale: 1, color: "#6b6b6b", duration: 0.55, ease: "power2.inOut" }, c.s);
+    }
+    tl.set("#st-q1 .quote", { color: "#6b6b6b" }, 6.95);
+    tl.set("#st-q2 .quote", { color: "#6b6b6b" }, 9.9);
+    tl.to(D.oldWords.map((_, i) => "#o" + i).join(","), { color: ink, duration: 0.3, ease: "power2.inOut" }, 12.9);
+
+    // Technique tags land one by one on the result.
+    tl.fromTo("#st-result .techniques li", { opacity: 0 }, { opacity: 1, duration: 0.12, stagger: 0.08 }, 17.1);
+
+    // Payoff: back to full frame. Kept words travel, the rest are replaced.
+    tl.to("#composer", { x: 0, y: 0, scale: 1, duration: 0.7, ease: "power2.inOut" }, 18.6);
+    const gone = D.oldWords.map((_, i) => i).filter((i) => !D.pairs.some(([a]) => a === i)).map((i) => "#o" + i);
+    tl.to(gone.join(","), { opacity: 0, filter: "blur(8px)", duration: 0.2, stagger: 0.012, ease: "power3.in" }, 18.85);
+    D.pairs.forEach(([a, b], k) => tl.to("#o" + a, { x: D.newWords[b].x - D.oldWords[a].x, y: D.newWords[b].y - D.oldWords[a].y, duration: 0.65, ease: "power2.inOut" }, 19.05 + k * 0.012));
+    const fresh = D.newWords.map((_, j) => j).filter((j) => !D.pairs.some(([, b]) => b === j)).map((j) => "#n" + j);
+    tl.fromTo(fresh.join(","), { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.14, stagger: 0.04, ease: "power4.out" }, 19.55);
+    tl.to("#dot", { x: D.dotNew.x, y: D.dotNew.y, duration: 0.65, ease: "power2.inOut" }, 19.05);
+
+    // Captions moved to compositions/captions.html (they follow the voiceover script).
+
+    // End card: the dot is carried to centre and becomes the mark.
+    tl.to(".w", { opacity: 0, filter: "blur(8px)", duration: 0.2, ease: "power3.in" }, 24.7);
+    tl.to("#composer", { borderColor: "rgba(29,95,191,0)", duration: 0.25 }, 24.75);
+    tl.to("#dot", { x: 960 - D.FULL.x - 88 - 4 - 321, y: 340 - D.FULL.y - 68 - 4 - 120, scale: 1, duration: 0.8, ease: "power2.inOut" }, 24.85);
+    tl.to("#dot .orb", { backgroundColor: "rgba(255,255,255,0)", boxShadow: "inset 0 0 0 0 rgba(0,0,0,0), inset 0 0 0 rgba(255,255,255,0), 0 0 0 rgba(0,0,0,0), 0 0 0 rgba(0,0,0,0)", duration: 0.4 }, 25.2);
+    tl.fromTo("#end-line", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.18 }, 25.5);
+    tl.fromTo("#end-sub", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 26.3);
+    tl.fromTo("#end-cta", { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.15, ease: "power4.out" }, 27);
+    tl.to({}, { duration: 0.01 }, 29.58);
+
+    window.__timelines["film"] = tl;
+  </script>
+</template>
