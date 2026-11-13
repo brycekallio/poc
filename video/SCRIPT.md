@@ -1,6 +1,6 @@
 # Voiceover script: P.O.C 30-second demo
 
-**Status:** draft render has captions and a silent voiceover slot. Waiting for Bryce's ElevenLabs voice clone.
+**Status:** voiced with Bryce's ElevenLabs clone (2026-11-12, see "Voice as dropped in" below). Draft for Bryce's approval.
 **Length:** 71 words over 29.6 s, about 2.4 words a second (calm pace; nothing is faster than 3.5 a second).
 
 | Time (s) | Line (say it exactly like this) | On screen |
@@ -18,10 +18,18 @@
 
 Say "P.O.C" as three letters, "pee oh see". Every claim is one the README already makes.
 
-## Dropping in the voice
+## Voice as dropped in (2026-11-12)
 
-The slot is `<audio id="voiceover" src="assets/voiceover.mp3">` in `index.html`, marked `VOICEOVER SLOT`.
-Right now `assets/voiceover.mp3` is 29.6 s of silence, so the timing is fixed and nothing else needs to move.
+ElevenLabs voice `91jhZaqO949C1LvHzeUa` (Bryce's clone), model eleven_v4, one take of all nine lines (flow
+https://elevenlabs.io/app/flows/yOq0W6tUIxRWkRyC02I0, take 2 of 2, 25.6 s). The prompt spelled "P.O.C" as "Pee oh see" so it is
+read as three letters; the captions still show "P.O.C". `assets/voiceover.mp3` is that take cut at the line boundaries and
+each line placed at its table start, with two moves: lines 1 and 2 run about 0.5 s over their windows, so they are eased
+to 1.07x tempo and line 2 starts at 3.3 s instead of 3.0 (line 3 at 6.6, a touch after the table). Captions use the take's
+own word times mapped through that placement (`assets/transcript.json`), via `node tools/captions.mjs assets/transcript.json`.
+
+## Re-dropping a new voice
+
+The audio is `<audio id="voiceover" src="assets/voiceover.mp3">` in `index.html` (29.6 s; keep the name and length and nothing else moves).
 
 1. In ElevenLabs, generate the lines above with your cloned voice as **one take**, pacing to the times in the table
    (or generate line by line and place each one at its start time in any editor). Export MP3.

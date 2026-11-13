@@ -45,9 +45,7 @@
         data-height="1080"
       ></div>
 
-      <!-- VOICEOVER SLOT: replace assets/voiceover.mp3 with Bryce's ElevenLabs take (same name, about 29.6 s,
-           lines on the clock in SCRIPT.md). It is 29.6 s of silence until then. After the swap, run
-           npx hyperframes transcribe assets/voiceover.mp3 --model small.en, then node tools/captions.mjs assets/transcript.json -->
+      <!-- Voiceover: Bryce's ElevenLabs clone, one take cut per line and placed on the table times (see SCRIPT.md). Captions come from assets/transcript.json. -->
       <audio id="voiceover" src="assets/voiceover.mp3" data-start="0" data-duration="29.6" data-volume="1"></audio>
 
       <audio data-hf-id="hf-gp91" id="s-dot" src="assets/sfx/pop.mp3" data-start="3.0" data-volume="0.5"></audio>
