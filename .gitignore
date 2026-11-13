@@ -7,3 +7,8 @@ CLAUDE.md
 .claude/
 preview
 *.zip
+# HyperFrames caches and renders (the delivered MP4 lives in site/media/)
+video/.hyperframes/
+video/.thumbnails/
+video/.waveform-cache/
+video/renders/
